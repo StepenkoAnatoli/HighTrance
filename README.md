@@ -23,7 +23,7 @@ Every track is built from scratch with procedural music theory. HighTrance conta
 - **Mastering:** rendered audio goes through an optional post-render mastering stage — zero-phase high-pass/EQ, mid-side stereo width, gentle bus compression, a soft-knee peak limiter and peak normalisation (skip it with `--no-master`).
 - **Reproducible:** the same seed and the same settings always give the same track.
 - **Export:** a multi-track `.mid` file, plus optional `.wav` (16- or 24-bit) or `.mp3`.
-- **Interfaces:** a CLI, a simple Tkinter GUI, and a Python API.
+- **Interfaces:** a CLI, a Tkinter GUI, a Gradio browser UI, and a Python API.
 
 ## Installation
 
@@ -55,7 +55,7 @@ python main.py --style hightech --length 4.5 --seed 42 --render-audio
 python main.py --gui
 ```
 
-`main.py` options: `--style {goa,hightech,hybrid}`, `--bpm`, `--length` (minutes), `--key` (for example `Am`, `F#m`, `Dm`), `--seed`, `--intensity {0.5…1.0}`, `--output`, `--render-audio`, `--no-master`, `--gui`.
+`main.py` options: `--style {goa,hightech,hybrid}`, `--bpm`, `--length` (minutes), `--key` (for example `Am`, `F#m`, `Dm`), `--seed`, `--intensity {0.5…1.0}`, `--output`, `--render-audio`, `--no-master`, `--gui`, `--web` (browser UI; generation flags are ignored).
 
 The extended CLI adds `auto` values, scale selection, MP3 and renderer choice:
 
@@ -68,11 +68,26 @@ python -m ui.cli --render-audio --renderer fluidsynth --soundfont "C:\path\to\Fo
 
 The available scales are `minor`, `harmonic_minor`, `phrygian`, `phrygian_dominant`, `double_harmonic`, `hungarian_minor`, `dorian`, `locrian`, `mixolydian` and `major`.
 
+### Web UI
+
+```bash
+python main.py --web
+# or: python -m ui.web
+```
+
+Opens the Gradio interface in your browser: pick the parameters, press
+**Generate track**, listen in the page and download the MIDI/WAV. It binds to
+`127.0.0.1` only (no share links, no telemetry) and needs `gradio` from
+`requirements.txt`. The page owns its parameters — CLI generation flags
+(`--style`, `--length`, `--output`, …) are ignored under `--web`. One
+generation runs at a time; a second Generate click is ignored until the
+current one finishes.
+
 Output files go to `output/midi/` and `output/audio/`. Both folders are ignored by git.
 
 ## Audio rendering
 
-Two renderers, chosen with `--renderer` (on `python -m ui.cli`):
+Two renderers, chosen with `--renderer` (on `python -m ui.cli`, or the renderer dropdown in the [Web UI](#web-ui)):
 
 | Renderer | What it is |
 |---|---|
@@ -81,7 +96,7 @@ Two renderers, chosen with `--renderer` (on `python -m ui.cli`):
 | `builtin` | force the built-in synth |
 
 `python main.py --render-audio` always uses the built-in synth; use `python -m ui.cli`
-for renderer choice.
+or the Web UI for renderer choice.
 
 ### FluidSynth setup (optional)
 
@@ -149,12 +164,12 @@ song = gen.regenerate_module(song, "leads", seed=99)   # re-roll one layer only
 ## Project structure
 
 ```
-main.py               entry point (CLI / GUI)
+main.py               entry point (CLI / GUI / Web)
 config/settings.py    defaults, styles, structure ratios, sound and mix presets
 core/                 seed handling, music theory, arrangement, data model, TranceGenerator
 modules/              drums, bass, leads (acid / lead / arp), pads, fx
 synthesis/            MIDI engine, DSP, instruments, mixer, audio rendering
-ui/                   CLI and Tkinter GUI
+ui/                   CLI, Tkinter and web UI
 ai/                   optional MusicGen-based refiner
 tests/                pytest test-suite
 ```

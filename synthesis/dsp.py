@@ -121,9 +121,17 @@ def _dtype(x: np.ndarray):
     return np.float32 if np.asarray(x).dtype == np.float32 else np.float64
 
 
-def highpass(x: np.ndarray, fc: float, sr: int, order: int = 2) -> np.ndarray:
-    sos = signal.butter(order, min(fc, 0.45 * sr), btype="highpass", fs=sr, output="sos")
-    return signal.sosfilt(sos.astype(_dtype(x)), x, axis=0)
+def highpass(x: np.ndarray, fc: float, sr: int, order: int = 2, zero_phase: bool = False) -> np.ndarray:
+    sos = signal.butter(order, min(fc, 0.45 * sr), btype="highpass", fs=sr, output="sos").astype(_dtype(x))
+    if zero_phase:
+        # filtfilt: no group-delay distortion (causal high-passes near the kick
+        # fundamental overshoot noticeably); the response is squared, so use a
+        # lower cutoff for the same audible steepness.
+        try:
+            return signal.sosfiltfilt(sos, x, axis=0 if x.ndim > 1 else -1)
+        except ValueError:
+            pass    # signal shorter than the padding requirement -> fall back
+    return signal.sosfilt(sos, x, axis=0)
 
 
 def lowpass_sos(x: np.ndarray, fc: float, sr: int, order: int = 2) -> np.ndarray:
@@ -136,6 +144,17 @@ def bandpass(x: np.ndarray, lo: float, hi: float, sr: int, order: int = 2) -> np
     lo = min(lo, hi * 0.9)
     sos = signal.butter(order, [lo, hi], btype="bandpass", fs=sr, output="sos")
     return signal.sosfilt(sos, x, axis=0)
+
+
+def peaking(x: np.ndarray, fc: float, gain_db: float, sr: int, q: float = 0.707) -> np.ndarray:
+    """RBJ peaking EQ: ``gain_db`` boost (positive) or cut (negative) centred on ``fc``."""
+    a = 10.0 ** (gain_db / 40.0)
+    w0 = TWO_PI * min(float(fc), 0.45 * sr) / sr
+    alpha = np.sin(w0) / (2.0 * max(q, 0.1))
+    cosw = np.cos(w0)
+    b = np.asarray([1.0 + alpha * a, -2.0 * cosw, 1.0 - alpha * a], dtype=_dtype(x))
+    aa = np.asarray([1.0 + alpha / a, -2.0 * cosw, 1.0 - alpha / a], dtype=_dtype(x))
+    return signal.lfilter(b, aa, x, axis=0 if x.ndim > 1 else -1)
 
 
 def soft_clip(x: np.ndarray, drive: float = 1.0) -> np.ndarray:

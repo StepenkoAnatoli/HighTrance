@@ -20,6 +20,7 @@ Every track is built from scratch with procedural music theory. HighTrance conta
   - **Pads:** atmospheric pads and evolving textures.
   - **FX:** risers, impacts, downlifters, zaps and bubbles.
 - **Mixing:** per-track volume, panning, EQ, compression, kick sidechain, reverb and delay sends, and a master bus with glue compression and a limiter.
+- **Mastering:** rendered audio goes through an optional post-render mastering stage — zero-phase high-pass/EQ, mid-side stereo width, gentle bus compression, a soft-knee peak limiter and peak normalisation (skip it with `--no-master`).
 - **Reproducible:** the same seed and the same settings always give the same track.
 - **Export:** a multi-track `.mid` file, plus optional `.wav` (16- or 24-bit) or `.mp3`.
 - **Interfaces:** a CLI, a simple Tkinter GUI, and a Python API.
@@ -54,7 +55,7 @@ python main.py --style hightech --length 7 --seed 42 --render-audio
 python main.py --gui
 ```
 
-`main.py` options: `--style {goa,hightech,hybrid}`, `--bpm`, `--length` (minutes), `--key` (for example `Am`, `F#m`, `Dm`), `--seed`, `--intensity {0.5…1.0}`, `--output`, `--render-audio`, `--gui`.
+`main.py` options: `--style {goa,hightech,hybrid}`, `--bpm`, `--length` (minutes), `--key` (for example `Am`, `F#m`, `Dm`), `--seed`, `--intensity {0.5…1.0}`, `--output`, `--render-audio`, `--no-master`, `--gui`.
 
 The extended CLI adds `auto` values, scale selection, MP3 and renderer choice:
 

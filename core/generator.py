@@ -13,8 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
-from config.settings import (AI, BPM_MAX, BPM_MIN, DEFAULT_LENGTH_RANGE, DEFAULTS, LENGTH_LIMITS, MAJOR_SCALES,
-                             OUTPUT, SCALES, STRUCTURE, STYLE_LABELS, STYLES, get_preset)
+from config.settings import (AI, BPM_MAX, BPM_MIN, DEFAULT_LENGTH_RANGE, DEFAULTS, LENGTH_LIMITS, MASTERING,
+                             MAJOR_SCALES, OUTPUT, SCALES, STRUCTURE, STYLE_LABELS, STYLES, get_preset)
 from core.arrangement import Arrangement, arrangement_to_dict, build_arrangement
 from core.models import GenerationContext, Song, Track
 from core.seed import SeedManager, derive_seed, generate_seed
@@ -180,10 +180,14 @@ class TranceGenerator:
 
     # ------------------------------------------------------------------ files
     def generate(self, render_audio: bool = False, audio_format: Optional[str] = None,
-                 song: Optional[Song] = None, progress=None) -> Dict:
+                 song: Optional[Song] = None, progress=None, master: Optional[bool] = None) -> Dict:
         """
         Main generation method.
         Returns a dictionary with information about the generated track.
+
+        ``master`` runs the post-render mastering stage (EQ / compression /
+        normalisation, see ``synthesis.audio_processor``); ``None`` honours
+        ``MASTERING["enabled"]``.
         """
         fmt = None
         if render_audio:
@@ -238,6 +242,19 @@ class TranceGenerator:
                           else "Rendering audio (FluidSynth)...")
                 result["audio_path"] = audio_gen.render(midi_path, "wav", audio_dir / f"{stem}.wav",
                                                         song=song, progress=progress)
+
+                do_master = MASTERING["enabled"] if master is None else bool(master)
+                if do_master:
+                    # optional stage: a mastering failure keeps the raw render
+                    try:
+                        from synthesis.audio_processor import process_audio
+                        self._log("Mastering audio (EQ / compression / normalisation)...")
+                        result["audio_path"] = process_audio(result["audio_path"])
+                        self._log(f"Mastered audio: {result['audio_path']}")
+                    except Exception as e:
+                        result["errors"].append(f"Mastering failed: {e}")
+                        self._log(f"Mastering failed: {e}")
+
                 if fmt == "mp3":   # keep the WAV even if the MP3 conversion is not possible
                     from synthesis.audio_render import wav_to_mp3
                     result["audio_path"] = wav_to_mp3(result["audio_path"])

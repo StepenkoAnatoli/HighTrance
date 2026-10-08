@@ -8,6 +8,12 @@ import argparse
 import sys
 from pathlib import Path
 
+# Windows defaults to the local code page (e.g. cp1252), which cannot encode
+# the arrows and box-drawing characters used in the output. Force UTF-8.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # Local imports
 from core.generator import TranceGenerator
 from core.seed import generate_seed
@@ -70,6 +76,11 @@ def parse_arguments():
         help="Also render WAV/MP3 (requires FluidSynth or similar)"
     )
     parser.add_argument(
+        "--no-master",
+        action="store_true",
+        help="Skip the post-render mastering stage (EQ/compression/normalisation)"
+    )
+    parser.add_argument(
         "--gui",
         action="store_true",
         help="Launch simple GUI instead of CLI"
@@ -113,7 +124,8 @@ def main():
 
     # Generate the track
     print("\nGenerating track...")
-    result = generator.generate(render_audio=args.render_audio)
+    result = generator.generate(render_audio=args.render_audio,
+                                master=False if args.no_master else None)
 
     # Show summary
     print_summary(result)

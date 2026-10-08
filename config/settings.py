@@ -109,6 +109,29 @@ OUTPUT = {
 }
 
 # ======================
+# POST-RENDER MASTERING (synthesis/audio_processor.py)
+# ======================
+
+MASTERING = {
+    "enabled": True,             # master rendered audio before export (--no-master skips it)
+    "highpass_hz": 20.0,         # rumble cleanup; zero-phase, keeps the kick fundamental
+    "lowmid_hz": 300.0,          # muddy low-mid bell ...
+    "lowmid_db": -2.5,           # ... gentle cut
+    "presence_hz": 3500.0,       # presence bell ...
+    "presence_db": 1.5,          # ... small boost
+    "air_hz": 11000.0,           # air band ...
+    "air_db": 1.5,               # ... small boost
+    "width": 1.15,               # mid/side stereo width (1.0 = unchanged)
+    "threshold_db": -12.0,       # gentle bus compressor (glue, not loudness)
+    "ratio": 2.0,
+    "attack_ms": 10.0,
+    "release_ms": 100.0,
+    "knee_threshold": 0.6,       # soft-knee peak control before normalisation ...
+    "knee_ceiling": 0.95,        # ... absorbs EQ-boosted transients
+    "target_peak_db": -1.0,      # final peak-normalisation ceiling
+}
+
+# ======================
 # AI REFINEMENT (Path B)
 # ======================
 

@@ -9,6 +9,12 @@ import argparse
 import sys
 from typing import Dict, List, Optional
 
+# Windows defaults to the local code page (e.g. cp1252), which cannot encode
+# the arrows and box-drawing characters used in the output. Force UTF-8.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 from config.settings import (BPM_MAX, BPM_MIN, COMMON_KEYS, DEFAULTS, LENGTH_LIMITS, SCALES, STYLE_LABELS,
                              STYLES)
 
@@ -86,6 +92,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--seed", type=int, default=None, help="Seed for reproducibility")
     p.add_argument("--output", default="output", help="Output folder")
     p.add_argument("--render-audio", action="store_true", help="Also render audio")
+    p.add_argument("--no-master", action="store_true",
+                   help="Skip the post-render mastering stage (EQ/compression/normalisation)")
     p.add_argument("--format", choices=["wav", "mp3"], default="wav", help="Audio format")
     p.add_argument("--renderer", choices=["auto", "builtin", "fluidsynth"], default="auto",
                    help="Audio engine (built-in synth or FluidSynth + SoundFont)")
@@ -109,7 +117,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                               scale=args.scale, seed=args.seed, intensity=args.intensity,
                               output_dir=args.output, sample_rate=args.sample_rate,
                               audio_format=args.format, renderer=args.renderer, soundfont=args.soundfont)
-        result = gen.generate(render_audio=args.render_audio)
+        result = gen.generate(render_audio=args.render_audio,
+                              master=False if args.no_master else None)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 2

@@ -76,3 +76,11 @@ checkpoints/
 tmp/
 temp/
 .cache/
+
+# Pytest
+.pytest_cache/
+
+# Credentials – never commit
+Github Token*.txt
+*Token*.txt
+*.pat

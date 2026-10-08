@@ -83,6 +83,14 @@ Opens the Gradio interface in your browser: pick the parameters, press
 generation runs at a time; a second Generate click is ignored until the
 current one finishes.
 
+The page keeps the **last 10 runs** (settings, seed and outcome) in
+`output/history.json` and shows them in a table below the controls; pick a row
+from the **Load settings from history** dropdown and press **Load settings** to
+restore that run's parameters (same seed reproduces the same track). The
+**Bundle (MIDI + audio)** button zips the latest run's MIDI and audio into
+`output/bundles/` for a single download. History is a log — the files
+themselves stay on disk in `output/`.
+
 Output files go to `output/midi/` and `output/audio/`. Both folders are ignored by git.
 
 ## Audio rendering

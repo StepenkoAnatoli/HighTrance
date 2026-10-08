@@ -92,6 +92,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--seed", type=int, default=None, help="Seed for reproducibility")
     p.add_argument("--output", default="output", help="Output folder")
     p.add_argument("--render-audio", action="store_true", help="Also render audio")
+    p.add_argument("--review", action="store_true",
+                   help="Interactive review loop after rendering (implies --render-audio; in-app playback)")
     p.add_argument("--no-master", action="store_true",
                    help="Skip the post-render mastering stage (EQ/compression/normalisation)")
     p.add_argument("--format", choices=["wav", "mp3"], default="wav", help="Audio format")
@@ -104,7 +106,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.review and args.gui:
+        parser.error("--review cannot be combined with --gui")
     if args.gui:
         from ui.gui import launch_gui
         launch_gui()
@@ -117,12 +122,23 @@ def main(argv: Optional[List[str]] = None) -> int:
                               scale=args.scale, seed=args.seed, intensity=args.intensity,
                               output_dir=args.output, sample_rate=args.sample_rate,
                               audio_format=args.format, renderer=args.renderer, soundfont=args.soundfont)
-        result = gen.generate(render_audio=args.render_audio,
+        result = gen.generate(render_audio=args.render_audio or args.review,
+                              audio_format="wav" if args.review else None,
                               master=False if args.no_master else None)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 2
     print_summary(result)
+    if args.review:
+        if not result.get("audio_path"):
+            print("Review mode needs rendered audio, but no audio was produced.",
+                  file=sys.stderr)
+            return 1
+        from ui.review import ReviewSession
+        session = ReviewSession(gen, result,
+                                master=False if args.no_master else None,
+                                final_format=args.format)
+        session.run()
     return 1 if result["errors"] else 0
 
 

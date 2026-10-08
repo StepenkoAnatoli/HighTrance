@@ -69,6 +69,27 @@ The available scales are `minor`, `harmonic_minor`, `phrygian`, `phrygian_domina
 
 Output files go to `output/midi/` and `output/audio/`. Both folders are ignored by git.
 
+## Review mode
+
+Generate a track and iterate on it in place:
+
+```bash
+python -m ui.cli --style goa --length 5 --render-audio --review
+```
+
+After the render the track plays inside the terminal player —
+`Space` = play/pause, `J`/`L` = seek ±10 s, `Enter` = done listening.
+Type a note in plain language ("slower, but keep the energy") and the
+configured LLM proposes changes to the global parameters (`bpm`,
+`intensity`, `key`, `length` — the track is always 3–6 minutes). You see
+the proposed diff and confirm with `y` before the song re-renders with the
+**same seed**, so it stays the same track. Every session writes
+`output/reviews/review-<timestamp>/history.json`.
+
+The LLM endpoint is configured in `config/settings.py` under `REVIEW`
+(default: a local Ollama server; any OpenAI-compatible API works). Without
+an audio output device the mode falls back to printing the file path.
+
 ### Python API
 
 ```python

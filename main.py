@@ -85,8 +85,16 @@ def parse_arguments():
         action="store_true",
         help="Launch simple GUI instead of CLI"
     )
+    parser.add_argument(
+        "--review",
+        action="store_true",
+        help="Interactive review loop after rendering (implies --render-audio; in-app playback)"
+    )
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.review and args.gui:
+        parser.error("--review cannot be combined with --gui")
+    return args
 
 
 def main():
@@ -124,11 +132,24 @@ def main():
 
     # Generate the track
     print("\nGenerating track...")
-    result = generator.generate(render_audio=args.render_audio,
+    result = generator.generate(render_audio=args.render_audio or args.review,
+                                audio_format="wav" if args.review else None,
                                 master=False if args.no_master else None)
 
     # Show summary
     print_summary(result)
+
+    # Interactive review loop (spec: docs/superpowers/specs/2026-10-08-human-review-design.md)
+    if args.review:
+        if not result.get("audio_path"):
+            print("Review mode needs rendered audio, but no audio was produced.",
+                  file=sys.stderr)
+            sys.exit(1)
+        from ui.review import ReviewSession
+        session = ReviewSession(generator, result,
+                                master=False if args.no_master else None,
+                                final_format="wav")
+        session.run()
 
 
 if __name__ == "__main__":

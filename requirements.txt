@@ -1,0 +1,17 @@
+# Core: MIDI generation + built-in synthesizer / mixer
+mido>=1.3
+numpy>=1.24
+scipy>=1.10
+
+# Optional FluidSynth rendering of the General-MIDI file (needs the FluidSynth
+# system library/program and a .sf2 SoundFont; the built-in synth works without them)
+pyfluidsynth>=1.3
+midi2audio>=0.1.1
+
+# Testing
+pytest>=7.0
+
+# Not installed via pip:
+#   - ffmpeg (system package) for MP3 export
+#   - tkinter (ships with most Python installs; `sudo apt install python3-tk` on Debian/Ubuntu) for the GUI
+#   - optional AI refiner (ai/refiner.py): pip install torch audiocraft

@@ -9,6 +9,7 @@ import mido
 import numpy as np
 import pytest
 
+from ai.refiner import AIRefiner
 from config.settings import BPM_MAX, BPM_MIN, DEFAULT_LENGTH_RANGE, GM, STRUCTURE
 from core.arrangement import build_arrangement, create_arrangement, get_section_at_beat, is_build, is_drop
 from core.generator import MODULES, TranceGenerator
@@ -185,6 +186,15 @@ def test_midi_engine_handles_overlaps_and_cc_timing(tmp_path):
     assert eng.get_total_beats() == 2.0
 
 
+def test_midi_engine_resolves_overlaps_across_add_notes_calls():
+    eng = MidiEngine(bpm=140)
+    eng.add_notes("x", [{"note": 60, "start": 0, "duration": 2}], channel=0)
+    eng.add_notes("x", [{"note": 60, "start": 1, "duration": 1}], channel=0)
+    events = sorted(eng.tracks["x"]["events"], key=lambda event: (event[0], event[1]))
+    assert [(tick, msg.type) for tick, _, msg in events if msg.type in ("note_on", "note_off")] == [
+        (0, "note_on"), (480, "note_off"), (480, "note_on"), (960, "note_off")]
+
+
 # --------------------------------------------------------------------------- audio
 
 def test_render_audio_and_wav(tmp_path):
@@ -207,6 +217,47 @@ def test_generate_writes_files(tmp_path):
     assert Path(result["midi_path"]).exists() and Path(result["midi_path"]).parent == tmp_path / "midi"
     assert Path(result["audio_path"]).exists() and Path(result["audio_path"]).parent == tmp_path / "audio"
     assert result["seed"] == 8 and not result["errors"]
+
+
+def test_generate_uses_unique_file_stems(tmp_path):
+    gen = TranceGenerator(style="goa", seed=8, length_minutes=1, output_dir=tmp_path, verbose=False)
+    song = gen.compose()
+    first = gen.generate(song=song)
+    second = gen.generate(song=song)
+    assert first["midi_path"] != second["midi_path"]
+    assert Path(first["midi_path"]).exists() and Path(second["midi_path"]).exists()
+
+
+@pytest.mark.parametrize("audio_format", ["MP3", "bad"])
+def test_generate_normalizes_and_validates_audio_format(tmp_path, monkeypatch, audio_format):
+    gen = TranceGenerator(style="goa", seed=8, length_minutes=1, output_dir=tmp_path, verbose=False)
+    rendered_formats = []
+
+    def render(self, midi_path, output_format, output_path, song=None, progress=None):
+        rendered_formats.append(output_format)
+        return str(output_path)
+
+    monkeypatch.setattr("synthesis.audio_render.AudioGenerator.render", render)
+    if audio_format == "bad":
+        with pytest.raises(ValueError, match="audio_format"):
+            gen.generate(render_audio=True, audio_format=audio_format)
+        assert not rendered_formats
+    else:
+        converted = []
+        monkeypatch.setattr("synthesis.audio_render.wav_to_mp3",
+                            lambda wav_path: converted.append(wav_path) or wav_path.replace(".wav", ".mp3"))
+        gen.generate(render_audio=True, audio_format=audio_format)
+        assert rendered_formats == ["wav"]
+        assert converted and converted[0].endswith(".wav")
+
+
+@pytest.mark.parametrize("offset", [-0.1, 1.0, float("inf"), float("nan")])
+def test_ai_refiner_rejects_invalid_offset_before_loading_model(tmp_path, monkeypatch, offset):
+    path = write_wav(np.zeros((8000, 1), dtype=np.float32), tmp_path / "source.wav", 8000)
+    refiner = AIRefiner()
+    monkeypatch.setattr(refiner, "_load", lambda: pytest.fail("model loaded for invalid offset"))
+    with pytest.raises(ValueError, match="offset"):
+        refiner.refine(path, "test", offset=offset)
 
 
 def test_main_cli(tmp_path):

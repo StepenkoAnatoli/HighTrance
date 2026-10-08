@@ -15,6 +15,7 @@ Model weights are downloaded into the Hugging Face cache on first use.
 from __future__ import annotations
 
 import wave
+from math import isfinite
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -99,11 +100,13 @@ class AIRefiner:
         """
         if duration <= 0:
             raise ValueError("duration must be positive")
-        torch, model, audio_write = self._load()
         audio, sr = read_wav(audio_path)
         total = len(audio) / sr
         if offset is None:
             offset = max(0.0, total / 2 - duration / 2)
+        if not isfinite(offset) or offset < 0 or offset >= total:
+            raise ValueError(f"offset must be between 0 and the audio duration ({total:g} seconds)")
+        torch, model, audio_write = self._load()
         seg = audio[int(offset * sr): int((offset + duration) * sr)]
         melody = torch.from_numpy(np.ascontiguousarray(seg.T)).float()[None]   # (1, channels, samples)
         model.set_generation_params(duration=min(duration, len(seg) / sr))

@@ -33,7 +33,7 @@ class MidiEngine:
         return max(0, int(round(beats * self.ticks_per_beat)))
 
     def _create_track(self, name: str, channel: int = 0, program: Optional[int] = None) -> Dict:
-        track = {"channel": channel, "events": []}
+        track = {"channel": channel, "events": [], "notes": []}
         self.tracks[name] = track
         if program is not None and channel != 9:
             track["events"].append((0, _ORDER["program_change"],
@@ -57,7 +57,6 @@ class MidiEngine:
         }
         """
         track = self._track(track_name, channel, program)
-        parsed = []
         for note in notes:
             if isinstance(note, Note):
                 pitch, start, dur, vel = note.pitch, note.start, note.duration, note.velocity
@@ -66,24 +65,28 @@ class MidiEngine:
                 vel = note.get("velocity", 100)
             on = self._ticks(start)
             off = max(on + 1, self._ticks(start + dur))
-            parsed.append([on, off, max(0, min(127, int(pitch))), max(1, min(127, int(vel)))])
+            track["notes"].append(
+                [on, off, max(0, min(127, int(pitch))), max(1, min(127, int(vel))), channel])
 
         # Overlapping notes of the same pitch would be cut by the earlier note-off:
         # end the previous one where the next one starts instead.
-        parsed.sort(key=lambda n: (n[0], n[2]))
-        last: Dict[int, list] = {}
-        for n in parsed:
-            prev = last.get(n[2])
+        notes = sorted(track["notes"], key=lambda n: (n[0], n[2], n[4]))
+        last: Dict[Tuple[int, int], list] = {}
+        for n in notes:
+            key = (n[4], n[2])
+            prev = last.get(key)
             if prev is not None and prev[1] > n[0]:
                 prev[1] = n[0]
-            last[n[2]] = n
-        for on, off, pitch, vel in parsed:
+            last[key] = n
+
+        track["events"] = [event for event in track["events"] if event[2].type not in ("note_on", "note_off")]
+        for on, off, pitch, vel, note_channel in notes:
             if off <= on:
                 continue
             track["events"].append((on, _ORDER["note_on"],
-                                    Message("note_on", note=pitch, velocity=vel, channel=channel)))
+                                    Message("note_on", note=pitch, velocity=vel, channel=note_channel)))
             track["events"].append((off, _ORDER["note_off"],
-                                    Message("note_off", note=pitch, velocity=0, channel=channel)))
+                                    Message("note_off", note=pitch, velocity=0, channel=note_channel)))
 
     def add_control_change(self, track_name: str, control: int, value: int, time_in_beats: float,
                            channel: int = 0) -> None:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import random
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
@@ -184,6 +185,13 @@ class TranceGenerator:
         Main generation method.
         Returns a dictionary with information about the generated track.
         """
+        fmt = None
+        if render_audio:
+            requested_format = self.audio_format if audio_format is None else audio_format
+            if not isinstance(requested_format, str) or requested_format.strip().lower() not in ("wav", "mp3"):
+                raise ValueError("audio_format must be 'wav' or 'mp3'")
+            fmt = requested_format.strip().lower()
+
         start_time = time.time()
         self._log(f"→ Style      : {STYLE_LABELS[self.style]}")
         self._log(f"→ BPM        : {self.bpm}")
@@ -198,7 +206,7 @@ class TranceGenerator:
         midi_dir = self.output_dir / "midi"
         audio_dir = self.output_dir / "audio"
         midi_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
         stem = f"{song.title}_{timestamp}"
         midi_path = song_to_midi(song).save(f"{stem}.mid", output_dir=midi_dir)
 
@@ -222,7 +230,6 @@ class TranceGenerator:
 
         if render_audio:
             from synthesis.audio_render import AudioGenerator
-            fmt = audio_format or self.audio_format
             try:
                 audio_dir.mkdir(parents=True, exist_ok=True)
                 audio_gen = AudioGenerator(soundfont_path=self.soundfont, sample_rate=self.sample_rate,

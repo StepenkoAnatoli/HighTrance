@@ -51,6 +51,8 @@ def print_summary(result: Dict) -> None:
     print(f"\n  MIDI  : {result['midi_path']}")
     if result.get("audio_path"):
         print(f"  Audio : {result['audio_path']}")
+    if result.get("ai_audio_path"):
+        print(f"  AI    : {result['ai_audio_path']}")
     for err in result.get("errors", []):
         print(f"  ! {err}")
     if "generation_time" in result:

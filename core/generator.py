@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
-from config.settings import (BPM_MAX, BPM_MIN, DEFAULT_LENGTH_RANGE, DEFAULTS, LENGTH_LIMITS, MAJOR_SCALES,
+from config.settings import (AI, BPM_MAX, BPM_MIN, DEFAULT_LENGTH_RANGE, DEFAULTS, LENGTH_LIMITS, MAJOR_SCALES,
                              OUTPUT, SCALES, STRUCTURE, STYLE_LABELS, STYLES, get_preset)
 from core.arrangement import Arrangement, arrangement_to_dict, build_arrangement
 from core.models import GenerationContext, Song, Track
@@ -229,12 +229,23 @@ class TranceGenerator:
                                            bit_depth=self.bit_depth, renderer=self.renderer)
                 self._log("Rendering audio (built-in synthesizer)..." if self.renderer != "fluidsynth"
                           else "Rendering audio (FluidSynth)...")
-                result["audio_path"] = audio_gen.render(midi_path, fmt, audio_dir / f"{stem}.{fmt}",
+                result["audio_path"] = audio_gen.render(midi_path, "wav", audio_dir / f"{stem}.wav",
                                                         song=song, progress=progress)
+                if fmt == "mp3":   # keep the WAV even if the MP3 conversion is not possible
+                    from synthesis.audio_render import wav_to_mp3
+                    result["audio_path"] = wav_to_mp3(result["audio_path"])
                 self._log(f"Audio rendered: {result['audio_path']}")
             except Exception as e:  # keep the MIDI even if audio fails
                 result["errors"].append(f"Audio rendering failed: {e}")
                 self._log(f"Audio rendering failed: {e}")
+
+            if AI["enabled"] and result["audio_path"]:
+                try:
+                    from ai.refiner import refine_track
+                    self._log("Refining audio with local AI model...")
+                    result["ai_audio_path"] = refine_track(result)
+                except Exception as e:  # optional path – never lose the main result
+                    result["errors"].append(f"AI refinement failed: {e}")
 
         result["generation_time"] = round(time.time() - start_time, 2)
         self._log(f"\nGeneration completed in {result['generation_time']} seconds")

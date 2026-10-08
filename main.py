@@ -73,7 +73,7 @@ def parse_arguments():
     parser.add_argument(
         "--render-audio",
         action="store_true",
-        help="Also render WAV/MP3 (requires FluidSynth or similar)"
+        help="Also render WAV/MP3 (built-in synth; MP3 export additionally needs ffmpeg)"
     )
     parser.add_argument(
         "--no-master",

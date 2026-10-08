@@ -36,7 +36,7 @@ Optional extras:
 | Feature | Requirement |
 |---|---|
 | MP3 export | `ffmpeg` on your `PATH` (`sudo apt install ffmpeg`) |
-| FluidSynth rendering | FluidSynth (`sudo apt install fluidsynth`) and a `.sf2` SoundFont, such as `FluidR3_GM.sf2` |
+| FluidSynth rendering | the `fluidsynth` program (Linux: `sudo apt install fluidsynth`; Windows: official zip, see [Audio rendering](#audio-rendering)) and a `.sf2` SoundFont (see [`soundfonts/README.md`](soundfonts/README.md)) |
 | GUI | Tkinter (`sudo apt install python3-tk` on Debian/Ubuntu) |
 | AI refiner (`ai/refiner.py`, off by default) | `pip install torch audiocraft`, then set `AI["enabled"] = True` in `config/settings.py` |
 
@@ -62,12 +62,50 @@ The extended CLI adds `auto` values, scale selection, MP3 and renderer choice:
 ```bash
 python -m ui.cli --style goa --bpm auto --length auto --key auto --seed 7 \
                  --scale phrygian_dominant --render-audio --format mp3
-python -m ui.cli --render-audio --renderer fluidsynth --soundfont /path/to/FluidR3_GM.sf2
+python -m ui.cli --render-audio --renderer fluidsynth
+python -m ui.cli --render-audio --renderer fluidsynth --soundfont "C:\path\to\Font.sf2"
 ```
 
 The available scales are `minor`, `harmonic_minor`, `phrygian`, `phrygian_dominant`, `double_harmonic`, `hungarian_minor`, `dorian`, `locrian`, `mixolydian` and `major`.
 
 Output files go to `output/midi/` and `output/audio/`. Both folders are ignored by git.
+
+## Audio rendering
+
+Two renderers, chosen with `--renderer` (on `python -m ui.cli`):
+
+| Renderer | What it is |
+|---|---|
+| `auto` (default) | built-in NumPy/SciPy synthesizer — zero setup, always available |
+| `fluidsynth` | renders the General-MIDI file through a SoundFont (real GM instruments) |
+| `builtin` | force the built-in synth |
+
+`python main.py --render-audio` always uses the built-in synth; use `python -m ui.cli`
+for renderer choice.
+
+### FluidSynth setup (optional)
+
+**Windows** — no package-manager package exists, install manually:
+
+1. Download the latest `fluidsynth-*-win10-x64-*.zip` from
+   <https://github.com/FluidSynth/fluidsynth/releases> (verified with v2.6.1).
+2. Extract it anywhere (e.g. `%LOCALAPPDATA%\Programs\FluidSynth`) and add the
+   extracted `bin\` folder to your **user** `PATH`.
+3. Open a **new** terminal (PATH changes do not apply to already-open ones) and
+   check `fluidsynth --version`.
+
+**Linux:** `sudo apt install fluidsynth`.
+
+Then put a `.sf2` SoundFont in `soundfonts/` — download link, checksum and
+details in [`soundfonts/README.md`](soundfonts/README.md) — and render:
+
+```bash
+python -m ui.cli --render-audio --renderer fluidsynth
+```
+
+The SoundFont is auto-discovered from `soundfonts/` (`GeneralUser-GS.sf2` first);
+`--soundfont /path/to/Font.sf2` overrides discovery. MP3 export needs `ffmpeg`
+on your `PATH` — without it the run keeps the WAV and reports ffmpeg missing.
 
 ## Review mode
 
@@ -89,6 +127,12 @@ the proposed diff and confirm with `y` before the song re-renders with the
 The LLM endpoint is configured in `config/settings.py` under `REVIEW`
 (default: a local Ollama server; any OpenAI-compatible API works). Without
 an audio output device the mode falls back to printing the file path.
+
+> **CPU-only machines:** `REVIEW["llm"]["timeout"]` defaults to 60 s *per
+> request*, and local CPU inference regularly takes longer — every request
+> would abort and you would land on the `[r]etry/[q]uit` prompt. Raise the
+> value (e.g. to `900`) in `config/settings.py` before first use; a full
+> round measured about 13 minutes with it set to `600`.
 
 ### Python API
 

@@ -19,7 +19,8 @@ def launch_gui() -> None:
     except ImportError as e:  # pragma: no cover - depends on the system
         raise ImportError("tkinter is not available (on Debian/Ubuntu: sudo apt install python3-tk)") from e
 
-    from config.settings import BPM_MAX, BPM_MIN, COMMON_KEYS, DEFAULTS, SCALES, STYLE_LABELS, STYLES
+    from config.settings import (BPM_MAX, BPM_MIN, COMMON_KEYS, DEFAULTS, LENGTH_LIMITS, SCALES,
+                                 STYLE_LABELS, STYLES)
     from core.generator import TranceGenerator
 
     root = tk.Tk()
@@ -56,7 +57,7 @@ def launch_gui() -> None:
     add(f"BPM ({BPM_MIN}-{BPM_MAX} or auto)",
         ttk.Combobox(frame, textvariable=vars_["bpm"], values=["auto"] + list(range(BPM_MIN, BPM_MAX + 1))))
     add("Length (min or auto)", ttk.Combobox(frame, textvariable=vars_["length"],
-                                             values=["auto", 6, 6.5, 7, 7.5, 8, 8.5, 9]))
+                                             values=["auto"] + [v / 2 for v in range(int(LENGTH_LIMITS[0] * 2), int(LENGTH_LIMITS[1] * 2) + 1)]))
     add("Key", ttk.Combobox(frame, textvariable=vars_["key"], values=["auto"] + COMMON_KEYS))
     add("Scale", ttk.Combobox(frame, textvariable=vars_["scale"], values=["auto"] + sorted(SCALES),
                               state="readonly"))

@@ -8,6 +8,10 @@ scipy>=1.10
 pyfluidsynth>=1.3
 midi2audio>=0.1.1
 
+# Interactive review mode (spec: docs/superpowers/specs/2026-10-08-human-review-design.md)
+openai>=1.0
+sounddevice>=0.4
+
 # Testing
 pytest>=7.0
 

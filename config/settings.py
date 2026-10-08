@@ -15,7 +15,7 @@ from typing import Dict, List, Tuple
 DEFAULTS = {
     "style": "hybrid",          # Options: "goa", "hightech", "hybrid"
     "bpm": 142,                 # Typical range: 138–148
-    "length": 7.0,              # Track length in minutes
+    "length": 4.5,              # Track length in minutes (3-6)
     "key": "Am",                # Default key
     "intensity": 0.85,          # 0.5 (chill) → 1.0 (full power)
     "sample_rate": 44100,
@@ -132,6 +132,22 @@ MASTERING = {
 }
 
 # ======================
+# HUMAN REVIEW MODE (ui/review.py, ai/reviewer.py)
+# ======================
+
+REVIEW = {
+    "llm": {
+        # Any OpenAI-compatible endpoint: local Ollama, LM Studio, OpenRouter, OpenAI ...
+        "base_url": "http://localhost:11434/v1",
+        "api_key": "not-needed-for-ollama",
+        "model": "llama3.1:8b",
+        "temperature": 0.2,
+        "timeout": 60.0,
+    },
+    "history_rounds": 6,      # how many past rounds the LLM sees for context
+}
+
+# ======================
 # AI REFINEMENT (Path B)
 # ======================
 
@@ -148,9 +164,9 @@ AI = {
 BPM_MIN, BPM_MAX = BPM_RANGE
 
 #: Length range (minutes) used when the length is chosen automatically.
-DEFAULT_LENGTH_RANGE: Tuple[float, float] = (6.0, 9.0)
+DEFAULT_LENGTH_RANGE: Tuple[float, float] = (3.0, 6.0)
 #: Hard limits accepted from the user (minutes).
-LENGTH_LIMITS: Tuple[float, float] = (1.0, 20.0)
+LENGTH_LIMITS: Tuple[float, float] = (3.0, 6.0)
 
 DEFAULT_INTENSITY = DEFAULTS["intensity"]
 DEFAULT_SAMPLE_RATE = DEFAULTS["sample_rate"]

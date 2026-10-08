@@ -198,7 +198,7 @@ def test_midi_engine_resolves_overlaps_across_add_notes_calls():
 # --------------------------------------------------------------------------- audio
 
 def test_render_audio_and_wav(tmp_path):
-    song = compose(style="hybrid", seed=4, length_minutes=1)
+    song = compose(style="hybrid", seed=4, length_minutes=3)
     sr = 8000
     audio = render_song_audio(song, sr)
     assert audio.ndim == 2 and audio.shape[1] == 2
@@ -211,7 +211,7 @@ def test_render_audio_and_wav(tmp_path):
 
 
 def test_generate_writes_files(tmp_path):
-    gen = TranceGenerator(style="goa", seed=8, length_minutes=1, output_dir=tmp_path, sample_rate=8000,
+    gen = TranceGenerator(style="goa", seed=8, length_minutes=3, output_dir=tmp_path, sample_rate=8000,
                           verbose=False)
     result = gen.generate(render_audio=True)
     assert Path(result["midi_path"]).exists() and Path(result["midi_path"]).parent == tmp_path / "midi"
@@ -220,7 +220,7 @@ def test_generate_writes_files(tmp_path):
 
 
 def test_generate_uses_unique_file_stems(tmp_path):
-    gen = TranceGenerator(style="goa", seed=8, length_minutes=1, output_dir=tmp_path, verbose=False)
+    gen = TranceGenerator(style="goa", seed=8, length_minutes=3, output_dir=tmp_path, verbose=False)
     song = gen.compose()
     first = gen.generate(song=song)
     second = gen.generate(song=song)
@@ -230,7 +230,7 @@ def test_generate_uses_unique_file_stems(tmp_path):
 
 @pytest.mark.parametrize("audio_format", ["MP3", "bad"])
 def test_generate_normalizes_and_validates_audio_format(tmp_path, monkeypatch, audio_format):
-    gen = TranceGenerator(style="goa", seed=8, length_minutes=1, output_dir=tmp_path, verbose=False)
+    gen = TranceGenerator(style="goa", seed=8, length_minutes=3, output_dir=tmp_path, verbose=False)
     rendered_formats = []
 
     def render(self, midi_path, output_format, output_path, song=None, progress=None):
@@ -262,7 +262,7 @@ def test_ai_refiner_rejects_invalid_offset_before_loading_model(tmp_path, monkey
 
 def test_main_cli(tmp_path):
     proc = subprocess.run([sys.executable, str(ROOT / "main.py"), "--style", "hightech", "--seed", "1",
-                           "--length", "1", "--bpm", "145", "--key", "F#m", "--output", str(tmp_path)],
+                           "--length", "3", "--bpm", "145", "--key", "F#m", "--output", str(tmp_path)],
                           capture_output=True, text=True, cwd=ROOT, timeout=120)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "Track summary" in proc.stdout

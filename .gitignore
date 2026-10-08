@@ -80,7 +80,10 @@ temp/
 # Pytest
 .pytest_cache/
 
-# Credentials – never commit
+# Credentials — never commit
 Github Token*.txt
 *Token*.txt
 *.pat
+
+# SoundFonts — download into soundfonts/ (see soundfonts/README.md)
+*.sf2

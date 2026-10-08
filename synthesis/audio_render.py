@@ -6,7 +6,7 @@ WAV or MP3.
 * ``builtin``  – pure NumPy/SciPy synthesizer + mixer, no external tools needed.
   This is the sound-designed path (rolling bass, acid squelch, sidechain ...).
 * ``fluidsynth`` – renders the exported General-MIDI file with a SoundFont via
-  ``midi2audio`` or the ``fluidsynth`` command-line tool.
+  the ``fluidsynth`` command-line tool.
 * ``auto`` – built-in when a :class:`core.models.Song` is available, otherwise
   FluidSynth.
 
@@ -35,6 +35,18 @@ from synthesis.instruments import VOICES
 from synthesis.mixer import Mixer
 
 RENDERERS = ("auto", "builtin", "fluidsynth")
+
+# SoundFont discovery (design docs/superpowers/specs/2026-10-08-fluidsynth-
+# soundfont-design.md, D3): module-owned ``soundfonts/`` first, then the
+# current working directory, then common Linux locations. Both constants are
+# module attributes read at call time so tests can monkeypatch them.
+SOUNDFONT_DIR = Path(__file__).resolve().parent.parent / "soundfonts"
+SOUNDFONT_CANDIDATES = ("GeneralUser-GS.sf2", "FluidR3_GM.sf2")
+_SYSTEM_SOUNDFONTS = (
+    "/usr/share/sounds/sf2/FluidR3_GM.sf2",
+    "/usr/share/soundfonts/FluidR3_GM.sf2",
+    "/usr/share/soundfonts/default.sf2",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -187,15 +199,31 @@ class AudioGenerator:
 
     @staticmethod
     def _find_default_soundfont() -> Optional[str]:
-        """Try to find a common SoundFont on the system."""
-        common_paths = [
-            "/usr/share/sounds/sf2/FluidR3_GM.sf2",
-            "/usr/share/soundfonts/FluidR3_GM.sf2",
-            "/usr/share/soundfonts/default.sf2",
-            "soundfonts/FluidR3_GM.sf2",
-            "FluidR3_GM.sf2",
-        ]
-        for path in common_paths:
+        """Discover a SoundFont: module-owned ``soundfonts/`` first (project
+        asset beats ambient files), then the current working directory, then
+        common Linux locations. Preference inside a directory follows
+        ``SOUNDFONT_CANDIDATES``, then any other ``*.sf2`` sorted."""
+        module_dir = SOUNDFONT_DIR           # read at call time (tests monkeypatch)
+        candidates = SOUNDFONT_CANDIDATES    # read at call time
+
+        def _from_dir(base: Path) -> Optional[str]:
+            if not base.is_dir():
+                return None
+            for name in candidates:
+                p = base / name
+                if p.is_file():
+                    return str(p)
+            extras = sorted(base.glob("*.sf2"))
+            return str(extras[0]) if extras else None
+
+        for base in (Path(module_dir), Path.cwd() / "soundfonts"):
+            found = _from_dir(base)
+            if found:
+                return found
+        legacy = Path.cwd() / "FluidR3_GM.sf2"   # historical CWD-root location
+        if legacy.is_file():
+            return str(legacy)
+        for path in _SYSTEM_SOUNDFONTS:
             if Path(path).exists():
                 return path
         return None
@@ -216,7 +244,13 @@ class AudioGenerator:
         return output_dir / f"{stem}{suffix}"
 
     def render_midi_to_wav(self, midi_path, output_path=None, gain: float = 0.7) -> str:
-        """Render a MIDI file to WAV with FluidSynth + a SoundFont. Returns the WAV path."""
+        """Render a MIDI file to WAV with FluidSynth + a SoundFont. Returns the WAV path.
+
+        Invokes the ``fluidsynth`` binary directly (design D6): the previous
+        ``midi2audio`` wrapper passed ``-F`` after the positional arguments,
+        which FluidSynth 2.x rejects, and ignored the exit code — the caller
+        then saw a "successful" render with no file.
+        """
         midi_path = Path(midi_path)
         if not midi_path.exists():
             raise FileNotFoundError(f"MIDI file not found: {midi_path}")
@@ -224,19 +258,19 @@ class AudioGenerator:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if not self.soundfont_path or not Path(self.soundfont_path).exists():
             raise RuntimeError("No SoundFont (.sf2) found. Pass soundfont_path=... or use the built-in renderer.")
-        try:
-            from midi2audio import FluidSynth as Midi2AudioFS
-            Midi2AudioFS(sound_font=self.soundfont_path, sample_rate=self.sample_rate).midi_to_audio(
-                str(midi_path), str(output_path))
-            return str(output_path)
-        except ImportError:
-            pass
         exe = shutil.which("fluidsynth")
         if not exe:
             raise RuntimeError("FluidSynth is not available. Install the fluidsynth program "
-                               "(and optionally `pip install midi2audio`), or use the built-in renderer.")
-        subprocess.run([exe, "-ni", "-g", str(gain), "-F", str(output_path), "-r", str(self.sample_rate),
-                        str(self.soundfont_path), str(midi_path)], check=True, capture_output=True)
+                               "(README: 'Audio rendering') or use the built-in renderer.")
+        proc = subprocess.run([exe, "-ni", "-g", str(gain), "-F", str(output_path),
+                               "-r", str(self.sample_rate),
+                               str(self.soundfont_path), str(midi_path)],
+                              capture_output=True, text=True)
+        if proc.returncode != 0:
+            raise RuntimeError(f"FluidSynth failed (exit {proc.returncode}): "
+                               f"{(proc.stderr or proc.stdout or '').strip()[-500:]}")
+        if not output_path.is_file() or output_path.stat().st_size == 0:
+            raise RuntimeError(f"FluidSynth exited 0 but wrote no output at {output_path}")
         return str(output_path)
 
     def render_song(self, song, output_path=None, progress=None) -> str:

@@ -163,7 +163,7 @@ def test_generate_master_flag(monkeypatch, tmp_path):
         return fake
 
     monkeypatch.setattr("synthesis.audio_render.AudioGenerator.render", render)
-    gen = TranceGenerator(style="goa", seed=8, length_minutes=1, output_dir=tmp_path, verbose=False)
+    gen = TranceGenerator(style="goa", seed=8, length_minutes=3, output_dir=tmp_path, verbose=False)
 
     skipped = gen.generate(render_audio=True, master=False)
     assert skipped["audio_path"] == fake and skipped["errors"] == []

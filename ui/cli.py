@@ -15,8 +15,8 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-from config.settings import (BPM_MAX, BPM_MIN, COMMON_KEYS, DEFAULTS, LENGTH_LIMITS, SCALES, STYLE_LABELS,
-                             STYLES)
+from config.settings import (BPM_MAX, BPM_MIN, COMMON_KEYS, DEFAULTS, DEFAULT_LENGTH_RANGE, LENGTH_LIMITS,
+                             SCALES, STYLE_LABELS, STYLES)
 
 BANNER = r"""
   _   _ _       _     _____
@@ -84,7 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--bpm", type=_auto_or(float), default=DEFAULTS["bpm"],
                    help=f"Tempo {BPM_MIN}-{BPM_MAX} or 'auto'")
     p.add_argument("--length", type=_auto_or(float), default=DEFAULTS["length"],
-                   help=f"Minutes ({LENGTH_LIMITS[0]:g}-{LENGTH_LIMITS[1]:g}) or 'auto' (6-9)")
+                   help=f"Minutes ({LENGTH_LIMITS[0]:g}-{LENGTH_LIMITS[1]:g}) or 'auto' ({DEFAULT_LENGTH_RANGE[0]:g}-{DEFAULT_LENGTH_RANGE[1]:g})")
     p.add_argument("--key", type=_auto_or(str), default=DEFAULTS["key"],
                    help=f"Key, e.g. {', '.join(COMMON_KEYS[:5])} or 'auto'")
     p.add_argument("--scale", choices=sorted(SCALES), default=None, help="Scale/mode (default: style-based)")

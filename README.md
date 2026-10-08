@@ -11,7 +11,7 @@ Every track is built from scratch with procedural music theory. HighTrance conta
   - `hightech`: fast, technical, sharp acid, glitchy FX, tight and aggressive.
   - `hybrid`: a blend of the two.
 - **Tempo:** 138–148 BPM, chosen by you or picked automatically.
-- **Length:** usually 6–9 minutes.
+- **Length:** 3–6 minutes.
 - **Arrangement:** the full trance energy arc. Intro → Build-up → First Drop → Breakdown → Second Build → Massive Second Drop → Outro. Section lengths are quantised to 8-bar phrases.
 - **Layers:** each layer is generated independently and has its own seeded random stream:
   - **Drums:** kick, offbeat hats, claps, rides, tribal and organic percussion, ghost notes, polyrhythms, snare rolls, crashes.
@@ -49,7 +49,7 @@ The built-in synthesizer needs only NumPy and SciPy, so WAV rendering works with
 python main.py --style goa --bpm 145 --key F#m --seed 1234
 
 # MIDI and WAV, rendered with the built-in synth
-python main.py --style hightech --length 7 --seed 42 --render-audio
+python main.py --style hightech --length 4.5 --seed 42 --render-audio
 
 # GUI
 python main.py --gui
@@ -74,7 +74,7 @@ Output files go to `output/midi/` and `output/audio/`. Both folders are ignored 
 ```python
 from core.generator import TranceGenerator
 
-gen = TranceGenerator(style="goa", bpm=144, length_minutes=7, key="Em", seed=2024, intensity=0.9)
+gen = TranceGenerator(style="goa", bpm=144, length_minutes=4.5, key="Em", seed=2024, intensity=0.9)
 result = gen.generate(render_audio=True)       # dict: midi_path, audio_path, sections, tracks, ...
 
 song = gen.compose()                           # in-memory Song (tracks of notes)
@@ -96,7 +96,7 @@ tests/                pytest test-suite
 
 ## Notes
 
-- A full 7–9 minute render with the built-in synth takes about 1 minute and about 1.5 GB of RAM. To make it faster and lighter, use a lower `--sample-rate` with `python -m ui.cli`.
+- A full 6-minute render with the built-in synth takes about 1 minute and about 1.5 GB of RAM. To make it faster and lighter, use a lower `--sample-rate` with `python -m ui.cli`.
 - The MIDI file uses General-MIDI programs (drums on channel 10), so it opens in any DAW for further production.
 
 ## Tests

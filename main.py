@@ -17,7 +17,7 @@ if hasattr(sys.stdout, "reconfigure"):
 # Local imports
 from core.generator import TranceGenerator
 from core.seed import generate_seed
-from config.settings import DEFAULTS
+from config.settings import DEFAULTS, LENGTH_LIMITS
 from ui.cli import print_banner, print_summary
 
 
@@ -43,7 +43,7 @@ def parse_arguments():
         "--length",
         type=float,
         default=DEFAULTS["length"],
-        help="Track length in minutes (6-9 recommended)"
+        help=f"Track length in minutes ({LENGTH_LIMITS[0]:g}-{LENGTH_LIMITS[1]:g})"
     )
     parser.add_argument(
         "--key",

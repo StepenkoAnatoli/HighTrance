@@ -1,0 +1,13 @@
+# Core (MIDI generation + built-in synthesizer / mixer)
+mido>=1.3
+numpy>=1.24
+scipy>=1.10
+
+# Testing
+pytest>=7.0
+
+# Optional extras (not required):
+#   - FluidSynth binary + a .sf2 SoundFont for GM-style rendering (`--renderer fluidsynth`)
+#   - ffmpeg binary for MP3 export (`--mp3`)
+#   - gradio / tkinter for the GUI (tkinter ships with most Python installs)
+#   - audiocraft + torch for the optional AI refiner (ai/refiner.py)

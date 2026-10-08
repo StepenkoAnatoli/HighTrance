@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Goa Trance & High-Tech Trance Generator
-Main entry point – supports both CLI and optional GUI.
+Main entry point – supports CLI, optional Tkinter GUI and browser (web) UI.
 """
 
 import argparse
@@ -90,15 +90,33 @@ def parse_arguments():
         action="store_true",
         help="Interactive review loop after rendering (implies --render-audio; in-app playback)"
     )
+    parser.add_argument(
+        "--web",
+        action="store_true",
+        help="Launch the browser UI (Gradio); CLI generation flags are ignored"
+    )
 
     args = parser.parse_args()
     if args.review and args.gui:
         parser.error("--review cannot be combined with --gui")
+    if args.web and (args.gui or args.review):
+        parser.error("--web cannot be combined with --gui or --review")
     return args
 
 
 def main():
     args = parse_arguments()
+
+    # Launch the browser UI if requested (CLI generation flags are ignored;
+    # the web page owns its parameters — see ui/web.py)
+    if args.web:
+        try:
+            from ui.web import launch
+        except ImportError:
+            print("Web UI dependencies not installed. Run: pip install -r requirements.txt")
+            sys.exit(1)
+        launch()
+        return
 
     # Launch GUI if requested
     if args.gui:

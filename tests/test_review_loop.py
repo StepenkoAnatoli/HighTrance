@@ -182,6 +182,32 @@ def test_no_device_falls_back_to_manual_permanently(tmp_path):
     assert sum("Press Enter when ready" in p for p in prompts) == 2
 
 
+def test_lazy_playback_error_falls_back_to_manual(tmp_path):
+    """Regression: Player builds fine but fails on first listen() — the real
+    lazy-stream path (spec §5 fallback), unlike the construction-time failure
+    covered by test_no_device_falls_back_to_manual_permanently."""
+    out_lines, attempts, listens = [], [], []
+    class LazyFailPlayer(FakePlayer):
+        def listen(self):
+            listens.append(self.path)
+            raise PlaybackError("no output device")
+    def factory(path):
+        attempts.append(path)
+        return LazyFailPlayer(path)
+    session, prompts, _ = build(tmp_path,
+                                proposal=ReviewProposal("done", [], []),
+                                inputs=["", "first note", "", "q"],  # two listen rounds
+                                generate_fn=lambda p: pytest.fail("no render"),
+                                player_factory=factory,
+                                out_lines=out_lines)
+    session.run()
+    assert len(attempts) == 1                # fallback is permanent, no re-construction
+    assert len(listens) == 1                 # failed once, never listened again
+    assert any("No audio device" in m for m in out_lines)
+    assert sum("Listen externally" in m for m in out_lines) == 2
+    assert sum("Press Enter when ready" in p for p in prompts) == 2
+
+
 def test_keyboard_interrupt_saves_and_stops_player(tmp_path):
     class InterruptingPlayer(FakePlayer):
         def listen(self):

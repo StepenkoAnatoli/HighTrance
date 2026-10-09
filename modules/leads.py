@@ -156,17 +156,48 @@ def _arp(ctx: GenerationContext, rng: random.Random) -> Track:
 # Acid (TB-303 style)
 # ---------------------------------------------------------------------------
 
-def _acid_pattern(ctx: GenerationContext, rng: random.Random) -> List[Optional[Dict]]:
+def _acid_steps(ctx: GenerationContext, rng: random.Random) -> List[Optional[Dict]]:
+    """Per-step acid attributes from *independent* Markov chains
+    (idea from schollz/acid-test): pitch movement, accent, slide and rest
+    states each get their own transition table -> controlled, musical lines
+    instead of uniformly-random steps."""
     p = ctx.preset
-    degrees = [0, 0, 0, 7, 1, 3, 4, -1, 0, 6]
-    pattern: List[Optional[Dict]] = []
+
+    # pitch move chain: repeat holds a groove, +-1/2 walk, 7 = octave-ish lift
+    moves = ["hold", "up1", "down1", "up2", "hold", "hold", "up7"]
+    trans = {"hold": ("hold", "up1", "up1", "down1", "up2"),
+             "up1": ("hold", "hold", "down1", "up2", "hold"),
+             "up2": ("down1", "down1", "hold", "up1", "hold"),
+             "down1": ("hold", "hold", "up1", "hold", "up1"),
+             "up7": ("hold", "down1", "hold", "up1", "hold")}
+    # rest chain: 303 lines breathe - h=hit, r=rest
+    rest_trans = {"h": ("h", "h", "h", "h", "r"), "r": ("h", "h", "r", "h", "h")}
+
+    degs: List[Optional[Dict]] = []
+    move = "hold"
+    rest_state = "h"
+    deg = rng.choice((0, 0, 3, 4))
     for s in range(STEPS_PER_BAR):
-        if rng.random() < p.acid_density or s == 0:
-            pattern.append(dict(deg=rng.choice(degrees), accent=rng.random() < p.acid_accent_prob,
-                                slide=rng.random() < p.acid_slide_prob, up=rng.random() < 0.15))
+        if s == 0:
+            rest_state = "h"
+            deg = rng.choice((0, 3, 4))          # downbeat anchors the bar
         else:
-            pattern.append(None)
-    return pattern
+            rest_state = rng.choice(rest_trans[rest_state])
+            if rng.random() >= p.acid_density:
+                rest_state = "r"
+            move = rng.choice(trans[move])
+            step = {"hold": 0, "up1": 1, "up2": 2, "down1": -1, "up7": 7}[move]
+            deg = int(clamp(deg + step, -3, 10))
+        if rest_state == "r":
+            degs.append(None)
+        else:
+            degs.append(dict(deg=deg,
+                             accent=(s % 8 == 0 or rng.random() < p.acid_accent_prob),
+                             slide=rng.random() < p.acid_slide_prob,
+                             up=rng.random() < 0.12))
+    if not any(x is not None for x in degs):
+        degs[0] = dict(deg=0, accent=True, slide=False, up=False)
+    return degs
 
 
 def _acid(ctx: GenerationContext, rng: random.Random) -> Track:
@@ -177,7 +208,7 @@ def _acid(ctx: GenerationContext, rng: random.Random) -> Track:
     for section in ctx.arrangement.sections:
         if not section.has("acid"):
             continue
-        pattern = _acid_pattern(ctx, rng)
+        pattern = _acid_steps(ctx, rng)
         for bar in range(section.start_bar, section.end_bar):
             prog = section.progress(bar)
             if section.kind == "build" and prog < 0.3:
@@ -187,7 +218,8 @@ def _acid(ctx: GenerationContext, rng: random.Random) -> Track:
             rel = bar - section.start_bar
             if rel and rel % 4 == 0:                    # slowly evolving line
                 i = rng.randrange(STEPS_PER_BAR)
-                pattern[i] = None if pattern[i] and i else _acid_pattern(ctx, rng)[i] or pattern[i]
+                new_i = _acid_steps(ctx, rng)[i]
+                pattern[i] = new_i if new_i else pattern[i]
             e = energy(ctx, section, bar)
             if section.kind == "build":
                 cutoff = p.acid_cutoff * (0.35 + 1.6 * prog)

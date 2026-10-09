@@ -124,6 +124,31 @@ class AudioProcessor:
         out[:, 1] = mid - side
         return out
 
+    def _tape(self, x: np.ndarray, sr: int) -> np.ndarray:
+        """Very gentle tape-style warmth (Airwindows ToTape idea, NumPy port).
+
+        Two subtle stages: a soft high-frequency roll (tape head bump opposite:
+        slight treble shelf loss) plus a level-matched soft saturation that
+        fattens low mids without the harshness of hard limiting. Drive is
+        fixed low; this glues digital oscillators together. Level-matched so
+        the master chain is not re-gained by it."""
+        if x.size == 0:
+            return x
+        # gentle HF shelf loss (~1 dB above 8 kHz) - tapes never sparkle
+        y = x
+        fc = min(9000.0, 0.45 * sr)          # fault-tolerant at low test rates
+        sos = signal.butter(1, fc, "lowpass", fs=sr, output="sos")
+        rolloff = signal.sosfilt(sos, y, axis=0)
+        y = np.float32(0.92) * y + np.float32(0.08) * rolloff
+        # soft saturation, level-matched by normalising target peak
+        peak = float(np.abs(y).max())
+        if peak > 0:
+            drive = 1.35
+            sat = np.tanh(y * drive) / np.tanh(drive)
+            sat *= np.float32(peak / max(float(np.abs(sat).max()), 1e-9))
+            y = np.float32(0.85) * y + np.float32(0.15) * sat
+        return y
+
     def _compress(self, x: np.ndarray, sr: int) -> np.ndarray:
         """Feed-forward bus compressor (in place on ``x``).
 
@@ -194,6 +219,7 @@ class AudioProcessor:
             return x
         x = self._eq(x, sample_rate)
         x = self._widen(x)
+        x = self._tape(x, sample_rate)
         x = self._compress(x, sample_rate)
         x = self._soft_limit(x)
         return self._normalize(x)

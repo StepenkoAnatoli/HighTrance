@@ -30,7 +30,7 @@ try:  # pyfluidsynth may also raise OSError when the native library is missing
 except Exception:  # pragma: no cover - depends on the system
     FLUIDSYNTH_AVAILABLE = False
 
-from config.settings import DEFAULTS, OUTPUT, get_mix, get_preset
+from config.settings import DEFAULTS, OUTPUT, SIDECHAIN, get_mix, get_preset
 from synthesis.instruments import VOICES
 from synthesis.mixer import Mixer
 
@@ -100,11 +100,19 @@ def render_song_audio(song, sample_rate: int = DEFAULTS["sample_rate"], progress
     mixer = Mixer(intensity=song.intensity, sample_rate=sample_rate, bpm=song.bpm,
                   reverb_size=preset.reverb_size, delay_feedback=preset.delay_feedback, overrides=overrides)
 
-    kick_times = []
-    for t in song.tracks:
-        if t.instrument == "kick":
-            kick_times.extend(nt.start * spb for nt in t.notes)
-    duck = mixer.sidechain_curve(kick_times, n) if kick_times else None
+    kick_track = next((t for t in song.tracks if t.instrument == "kick"), None)
+    kick_times = [nt.start * spb for nt in kick_track.notes] if kick_track else []
+
+    # Render the kick once up-front: its audio drives the duck and its buffer is
+    # reused in the mixing loop below (no double synthesis).
+    kick_audio = (render_track(kick_track, song.bpm, sample_rate, n, preset)
+                  if kick_track is not None else None)
+    if kick_audio is not None and mixer.sidechain_mode == "audio":
+        duck = mixer.audio_sidechain(kick_audio, n)
+    elif kick_times:
+        duck = mixer.sidechain_curve(kick_times, n, release=SIDECHAIN["release_ms"] * 0.001)
+    else:
+        duck = None
 
     master = np.zeros((n, 2), dtype=np.float32)
     reverb_bus = np.zeros(n, dtype=np.float32)
@@ -112,12 +120,13 @@ def render_song_audio(song, sample_rate: int = DEFAULTS["sample_rate"], progress
     for i, track in enumerate(song.tracks):
         if progress:
             progress(f"Rendering {track.name}", i / (len(song.tracks) + 1))
-        stereo = render_track(track, song.bpm, sample_rate, n, preset)
+        stereo = kick_audio if track is kick_track else render_track(track, song.bpm, sample_rate, n, preset)
         dry, rev, dly = mixer.process_track(track.name, stereo, duck)
         master += dry
         reverb_bus += rev
         delay_bus += dly
         del stereo, dry
+    del kick_audio
 
     if progress:
         progress("Mixing", len(song.tracks) / (len(song.tracks) + 1))

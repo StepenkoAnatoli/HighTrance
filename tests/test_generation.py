@@ -82,7 +82,7 @@ def test_create_arrangement_dict_api():
 
 # --------------------------------------------------------------------------- generation
 
-@pytest.mark.parametrize("style", ["goa", "hightech", "hybrid"])
+@pytest.mark.parametrize("style", ["goa"])
 def test_all_styles_generate_all_layers(style):
     song = compose(style=style, seed=11, length_minutes=6)
     names = {t.name for t in song.tracks}
@@ -104,7 +104,7 @@ def test_same_seed_same_track_different_seed_different_track(tmp_path):
 
 def test_auto_parameters_within_ranges():
     for seed in range(1, 15):
-        g = TranceGenerator(style="hybrid", bpm=None, length_minutes=None, key=None, seed=seed, verbose=False)
+        g = TranceGenerator(style="goa", bpm=None, length_minutes=None, key=None, seed=seed, verbose=False)
         assert BPM_MIN <= g.bpm <= BPM_MAX
         assert DEFAULT_LENGTH_RANGE[0] <= g.length_minutes <= DEFAULT_LENGTH_RANGE[1]
 
@@ -130,19 +130,15 @@ def test_rolling_bass_avoids_kick_and_kick_is_four_on_floor():
 
 
 def test_notes_follow_scale():
-    song = compose(style="hightech", seed=9, key="F#m")
+    song = compose(style="goa", seed=9, key="F#m")
     for name in ("bass", "lead", "pad"):
         assert all(song.scale.contains(n.pitch) for n in song.track(name).notes), name
 
 
-def test_style_character_differs():
-    goa = compose(style="goa", seed=21)
-    tech = compose(style="hightech", seed=21)
-    tribal = {GM[k] for k in ("conga_mute", "conga_open", "conga_low", "bongo_high", "bongo_low")}
-    goa_tribal = sum(n.pitch in tribal for n in goa.track("percussion").notes)
-    tech_tribal = sum(n.pitch in tribal for n in tech.track("percussion").notes)
-    assert goa_tribal > tech_tribal
-    assert len(tech.track("fx").notes) > len(goa.track("fx").notes)
+def test_notes_follow_scale_all_melodic_tracks():
+    song = compose(style="goa", seed=9, key="F#m")
+    for name in ("bass", "lead", "pad", "acid"):
+        assert all(song.scale.contains(n.pitch) for n in song.track(name).notes), name
 
 
 def test_regenerate_single_module_keeps_others():
@@ -159,7 +155,7 @@ def test_regenerate_single_module_keeps_others():
 # --------------------------------------------------------------------------- MIDI
 
 def test_midi_file_contents(tmp_path):
-    song = compose(style="hightech", seed=5, bpm=146, key="Em")
+    song = compose(style="goa", seed=5, bpm=146, key="Em")
     path = song_to_midi(song).save("t.mid", tmp_path)
     mid = mido.MidiFile(path)
     assert mid.type == 1
@@ -198,7 +194,7 @@ def test_midi_engine_resolves_overlaps_across_add_notes_calls():
 # --------------------------------------------------------------------------- audio
 
 def test_render_audio_and_wav(tmp_path):
-    song = compose(style="hybrid", seed=4, length_minutes=3)
+    song = compose(style="goa", seed=4, length_minutes=3)
     sr = 8000
     audio = render_song_audio(song, sr)
     assert audio.ndim == 2 and audio.shape[1] == 2
@@ -261,7 +257,7 @@ def test_ai_refiner_rejects_invalid_offset_before_loading_model(tmp_path, monkey
 
 
 def test_main_cli(tmp_path):
-    proc = subprocess.run([sys.executable, str(ROOT / "main.py"), "--style", "hightech", "--seed", "1",
+    proc = subprocess.run([sys.executable, str(ROOT / "main.py"), "--style", "goa", "--seed", "1",
                            "--length", "3", "--bpm", "145", "--key", "F#m", "--output", str(tmp_path)],
                           capture_output=True, text=True, cwd=ROOT, timeout=120)
     assert proc.returncode == 0, proc.stdout + proc.stderr

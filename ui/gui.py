@@ -24,7 +24,7 @@ def launch_gui() -> None:
     from core.generator import TranceGenerator
 
     root = tk.Tk()
-    root.title("HighTrance – Goa & High-Tech Trance Generator")
+    root.title("HighTrance – Goa Trance Generator")
     root.resizable(False, False)
     frame = ttk.Frame(root, padding=14)
     frame.grid()

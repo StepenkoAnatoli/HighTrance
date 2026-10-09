@@ -1,4 +1,4 @@
-"""High-tech FX, risers, downlifters, impacts, zaps, sweeps and psychedelic bubbles."""
+"""FX: risers, downlifters, impacts, zaps, sweeps and psychedelic bubbles."""
 
 from __future__ import annotations
 
@@ -18,7 +18,6 @@ def generate(ctx: GenerationContext, rng: random.Random) -> List[Track]:
     p = ctx.preset
     track = make_track("fx")
     density = p.fx_density * (0.5 + 0.5 * ctx.intensity)
-    hightech = p.name != "goa"
 
     for section in ctx.arrangement.sections:
         if not section.has("fx"):
@@ -42,13 +41,13 @@ def generate(ctx: GenerationContext, rng: random.Random) -> List[Track]:
             if section.kind == "drop" and (bar - section.start_bar) % 16 == 15 and rng.random() < 0.5 + density / 2:
                 _fx(track, t0, 4.0, "sweep", 80)
             # high-tech zaps & lasers at phrase ends
-            if hightech and section.kind in ("drop", "build") and is_phrase_end(section, bar, 4):
+            if section.kind in ("drop", "build") and is_phrase_end(section, bar, 4):
                 for s in range(STEPS_PER_BAR):
                     if rng.random() < density * 0.18 * e:
                         _fx(track, t0 + s * STEP, 0.5, rng.choice(["zap", "laser"]), 90 + rng.randint(-10, 10),
                             sweep=round(rng.uniform(0.5, 3.0), 2))
             # goa psychedelic bubbles / gurgles
-            if section.kind in ("intro", "breakdown", "drop", "outro") and rng.random() < density * (0.35 if not hightech else 0.15):
+            if section.kind in ("intro", "breakdown", "drop", "outro") and rng.random() < density * 0.35:
                 s = rng.randrange(STEPS_PER_BAR)
                 _fx(track, t0 + s * STEP, rng.choice([0.5, 1.0, 2.0]), "bubble", 75 + rng.randint(-10, 10),
                     rate=round(rng.uniform(6, 22), 1))

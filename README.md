@@ -1,15 +1,12 @@
 # HighTrance
 
-A program that generates original music in the styles of **Classic Goa Trance** (1994 – early 2000s) and modern **High-Tech Trance / Psytrance**.
+A program that generates original **Classic Goa Trance** (1994 – early 2000s) tracks.
 
 Every track is built from scratch with procedural music theory. HighTrance contains no samples and no pre-written loops. It writes a multi-track General-MIDI file. It can also render the track to WAV or MP3 with its own NumPy/SciPy synthesizer and mixer, or with FluidSynth and a SoundFont.
 
 ## Features
 
-- **Styles:**
-  - `goa`: hypnotic, psychedelic, eastern scales, tribal percussion, long delays and reverbs.
-  - `hightech`: fast, technical, sharp acid, glitchy FX, tight and aggressive.
-  - `hybrid`: a blend of the two.
+- **Style:** `goa` — hypnotic, psychedelic, eastern scales, tribal percussion, long delays and reverbs.
 - **Tempo:** 138–148 BPM, chosen by you or picked automatically.
 - **Length:** 3–6 minutes.
 - **Arrangement:** the full trance energy arc. Intro → Build-up → First Drop → Breakdown → Second Build → Massive Second Drop → Outro. Section lengths are quantised to 8-bar phrases.
@@ -50,13 +47,13 @@ The built-in synthesizer needs only NumPy and SciPy, so WAV rendering works with
 python main.py --style goa --bpm 145 --key F#m --seed 1234
 
 # MIDI and WAV, rendered with the built-in synth
-python main.py --style hightech --length 4.5 --seed 42 --render-audio
+python main.py --style goa --length 4.5 --seed 42 --render-audio
 
 # GUI
 python main.py --gui
 ```
 
-`main.py` options: `--style {goa,hightech,hybrid}`, `--bpm`, `--length` (minutes), `--key` (for example `Am`, `F#m`, `Dm`), `--seed`, `--intensity {0.5…1.0}`, `--output`, `--render-audio`, `--stems`, `--no-master`, `--gui`, `--web` (browser UI; generation flags are ignored).
+`main.py` options: `--style goa`, `--bpm`, `--length` (minutes), `--key` (for example `Am`, `F#m`, `Dm`), `--seed`, `--intensity {0.5…1.0}`, `--output`, `--render-audio`, `--stems`, `--no-master`, `--gui`, `--web` (browser UI; generation flags are ignored).
 
 The extended CLI adds `auto` values, scale selection, MP3 and renderer choice:
 

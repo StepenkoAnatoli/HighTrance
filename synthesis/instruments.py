@@ -93,7 +93,7 @@ def percussion(note: Note, dur: float, sr: int, preset: StylePreset) -> np.ndarr
     if name in ("snare", "snare2"):
         n, t = env_len(0.25)
         tone = dsp.sine(dsp.phase_from_freq(190 * (1 + 0.5 * np.exp(-t / 0.01)), n, sr)) * np.exp(-t / 0.045)
-        crisp = dsp.bandpass(_noise(name, n), 1500, 9000, sr) * np.exp(-t / (0.05 if preset.name == "hightech" else 0.08))
+        crisp = dsp.bandpass(_noise(name, n), 1500, 9000, sr) * np.exp(-t / 0.08)
         return _norm(0.6 * tone + crisp)
     if name in ("rim", "claves", "cowbell"):
         n, t = env_len(0.12)
@@ -169,9 +169,6 @@ def lead(note: Note, dur: float, sr: int, preset: StylePreset) -> np.ndarray:
     for d in detunes:
         f = f0 * (1 + d) * vib
         x += dsp.saw(dsp.phase_from_freq(f, n, sr, rng.random()), f, sr)
-    if p.get("wave") == "saw_square":
-        f = f0 * 2 * vib
-        x += 1.2 * dsp.square(dsp.phase_from_freq(f, n, sr), f, sr)
     x = dsp.lowpass(x, p.get("cutoff", 5000.0), sr, q=0.9)
     return _norm(x) * dsp.adsr(n, n_gate, sr, 0.005, 0.25, 0.7, 0.15)
 

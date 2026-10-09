@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Goa Trance & High-Tech Trance Generator
+Goa Trance Generator
 Main entry point – supports CLI, optional Tkinter GUI and browser (web) UI.
 """
 
@@ -23,13 +23,13 @@ from ui.cli import print_banner, print_summary
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description="Generate original Goa Trance / High-Tech Trance tracks",
+        description="Generate original Goa Trance tracks",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
     parser.add_argument(
         "--style",
-        choices=["goa", "hightech", "hybrid"],
+        choices=["goa"],
         default=DEFAULTS["style"],
         help="Music style"
     )

@@ -1,5 +1,5 @@
 """Drums: four-on-the-floor kick, hats, claps, rides, tribal/organic percussion,
-high-tech ghost notes, polyrhythms, rolls, crashes and build-up snare rolls."""
+ghost notes, polyrhythms, rolls, crashes and build-up snare rolls."""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def _section_patterns(ctx: GenerationContext, rng: random.Random) -> dict:
         "poly": rng.random() < p.polyrhythm,
         "poly_inst": rng.choice(["rim", "claves", "cowbell"] if not p.organic else ["conga_mute", "claves", "rim"]),
         "kick_var": rng.choice([None, None, "skip_last", "double"]),
-        "snare_layer": p.name != "goa" and rng.random() < 0.6,
+        "snare_layer": False,
     }
 
 
@@ -127,7 +127,7 @@ def generate(ctx: GenerationContext, rng: random.Random) -> List[Track]:
 
             # fills / rolls at phrase ends
             if phrase_end and section.kind != "build" and rng.random() < p.roll_prob * (0.5 + e):
-                inst = "snare" if p.name == "hightech" or rng.random() < 0.4 else "hat_closed"
+                inst = "snare" if rng.random() < 0.4 else "hat_closed"
                 if p.tribal_enabled and p.organic and rng.random() < 0.5:
                     inst = rng.choice(["tom_low", "tom_mid", "conga_open"])
                 for k in range(8):

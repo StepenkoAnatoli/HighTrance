@@ -25,7 +25,7 @@ BANNER = r"""
  | |_| | |/ _` | '_ \  | || '__/ _` | '_ \ / __/ _ \
  |  _  | | (_| | | | | | || | | (_| | | | | (_|  __/
  |_| |_|_|\__, |_| |_| |_||_|  \__,_|_| |_|\___\___|
-          |___/   Goa Trance & High-Tech Trance Generator
+          |___/   Goa Trance Generator
 """
 
 
@@ -82,7 +82,7 @@ def _auto_or(cast):
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="python -m ui.cli",
-        description="Generate original Goa Trance / High-Tech Trance tracks (extended options).",
+        description="Generate original Goa Trance tracks (extended options).",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     p.add_argument("--style", choices=STYLES, default=DEFAULTS["style"], help="Music style")

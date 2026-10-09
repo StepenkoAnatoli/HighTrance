@@ -1,9 +1,8 @@
 """Rolling psytrance basslines.
 
 The bass plays the three 16th notes *between* the kicks of every beat
-(``K-B-B-B``) – the hypnotic "rolling" bass of Goa / psytrance.  Goa
-favours octave jumps and modal movement (b2, 5th); High-Tech plays tighter,
-shorter notes with more movement and 32nd-note "gallops".
+(``K-B-B-B``) – the hypnotic rolling bass of Goa: octave jumps and modal
+movement (b2, 5th) with a sweeping filter.
 """
 
 from __future__ import annotations
@@ -24,7 +23,7 @@ def cutoff_to_cc(hz: float) -> int:
 
 def _riff(ctx: GenerationContext, rng: random.Random) -> List[Optional[int]]:
     p = ctx.preset
-    moves = [1, -1, 4, 2, -2] if p.bass_pattern == "16th_rolling" else [1, -1, 1, 3, -3, 6]
+    moves = [1, -1, 4, 2, -2]
     riff: List[Optional[int]] = []
     for s in range(STEPS_PER_BAR):
         if s % 4 == 0:
@@ -44,7 +43,6 @@ def generate(ctx: GenerationContext, rng: random.Random) -> List[Track]:
     track = make_track("bass")
     scale = ctx.scale
     octave = 1 if scale.pitch(0, 1) >= 33 else 2
-    tech = p.bass_pattern != "16th_rolling"
 
     for section in ctx.arrangement.sections:
         if not section.has("bass"):
@@ -73,10 +71,5 @@ def generate(ctx: GenerationContext, rng: random.Random) -> List[Track]:
                 gate = p.bass_gate * STEP
                 params = dict(cutoff=cutoff, wave=p.bass_wave, detune=p.bass_detune,
                               env=2.2 if p.bass_filter_mod else 0.0)
-                # High-tech gallop: split the last 16th of a beat into two 32nds
-                if tech and s % 4 == 3 and e > 0.75 and rng.random() < 0.18:
-                    track.add(t0 + s * STEP, gate / 2, pitch, vel, **params)
-                    track.add(t0 + s * STEP + STEP / 2, gate / 2, pitch, vel - 6, **params)
-                    continue
                 track.add(t0 + s * STEP, gate, pitch, vel, **params)
     return [track.sort()]

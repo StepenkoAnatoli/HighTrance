@@ -35,7 +35,7 @@ from core.generator import TranceGenerator
 from core.seed import MAX_SEED, generate_seed
 from synthesis.audio_render import RENDERERS
 
-_STYLE_LABELS = {"goa": "Goa", "hightech": "High-Tech", "hybrid": "Hybrid"}
+_STYLE_LABELS = {"goa": "Goa"}
 
 # History + bundle storage live under the same CWD-relative output_dir the
 # generator writes to (step-4 design D1/r14); output/ is gitignored.
@@ -350,9 +350,9 @@ def make_bundle(midi_file, audio_file, stems_files=None):
 def build_ui() -> gr.Blocks:
     """Build the Blocks app without launching a server (design D3)."""
     style_choices = [(_STYLE_LABELS[s], s) for s in STYLES]
-    with gr.Blocks(title="HighTrance — Goa / High-Tech Trance Generator",
+    with gr.Blocks(title="HighTrance — Goa Trance Generator",
                    analytics_enabled=False) as demo:
-        gr.Markdown("# 🌀 HighTrance\nGenerate original Goa / High-Tech Trance "
+        gr.Markdown("# 🌀 HighTrance\nGenerate original Goa Trance "
                     "tracks — seed-based & reproducible.")
         with gr.Row():
             with gr.Column(scale=1):

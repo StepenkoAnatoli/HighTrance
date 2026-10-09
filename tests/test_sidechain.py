@@ -55,7 +55,7 @@ def test_audio_sidechain_peaks_at_onset_and_recovers():
         assert seg.min() < 0.02                        # fully recovers between kicks
 
 
-@pytest.mark.parametrize("style", ["goa", "hightech", "hybrid"])
+@pytest.mark.parametrize("style", ["goa"])
 def test_audio_sidechain_recovers_for_every_style(style):
     buf, spb, sr = _kick_sequence(style=style, bpm=143)
     d = Mixer(sample_rate=sr).audio_sidechain(buf, len(buf))

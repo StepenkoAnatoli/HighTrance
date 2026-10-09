@@ -1,5 +1,5 @@
 """
-Configuration and default settings for the Goa Trance / High-Tech Trance Generator
+Configuration and default settings for the Goa Trance Generator
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from typing import Dict, List, Tuple
 # ======================
 
 DEFAULTS = {
-    "style": "hybrid",          # Options: "goa", "hightech", "hybrid"
+    "style": "goa",             # Classic Goa Trance
     "bpm": 142,                 # Typical range: 138–148
     "length": 4.5,              # Track length in minutes (3-6)
     "key": "Am",                # Default key
@@ -26,8 +26,8 @@ DEFAULTS = {
 # MUSICAL SETTINGS
 # ======================
 
-# Allowed styles
-STYLES = ["goa", "hightech", "hybrid"]
+# Allowed style
+STYLES = ["goa"]
 
 # Recommended BPM range
 BPM_RANGE = (138, 148)
@@ -61,12 +61,6 @@ BASS = {
         "filter_mod": True,
         "sidechain": True,
     },
-    "hightech": {
-        "pattern": "16th_tech",
-        "waveform": "square",
-        "filter_mod": True,
-        "sidechain": True,
-    }
 }
 
 # Lead / Melody settings
@@ -76,11 +70,6 @@ LEADS = {
         "delay": True,
         "reverb": True,
     },
-    "hightech": {
-        "style": "acid_sharp",
-        "delay": True,
-        "reverb": False,
-    }
 }
 
 # Drum kit emphasis
@@ -90,11 +79,6 @@ DRUMS = {
         "organic": True,
         "kick_punch": "medium",
     },
-    "hightech": {
-        "tribal": False,
-        "organic": False,
-        "kick_punch": "hard",
-    }
 }
 
 # ======================
@@ -206,8 +190,6 @@ MAJOR_SCALES: Tuple[str, ...] = ("phrygian_dominant", "double_harmonic", "mixoly
 
 STYLE_LABELS: Dict[str, str] = {
     "goa": "Classic Goa Trance",
-    "hightech": "High-Tech Trance / Psytrance",
-    "hybrid": "Hybrid (Goa x High-Tech)",
 }
 
 # ---------------------------------------------------------------------------
@@ -250,7 +232,7 @@ FX_PITCHES: Dict[str, int] = {
 
 @dataclass(frozen=True)
 class StylePreset:
-    """All the knobs that make Goa sound like Goa and High-Tech like High-Tech."""
+    """All the knobs that make Goa sound like Goa."""
 
     name: str
     bpm_range: Tuple[int, int]
@@ -338,53 +320,7 @@ GOA = StylePreset(
     **_table_params("goa"),
 )
 
-HIGHTECH = StylePreset(
-    name="hightech",
-    bpm_range=(142, 148),
-    keys=("Em", "Fm", "F#m", "Gm", "G#m", "A#m"),
-    scales=("phrygian", "locrian", "minor", "harmonic_minor"),
-    progressions=((0, 0, 0, 0), (0, 0, 0, 1), (0, 0, 6, 0), (0, 1, 0, 0), (0, 0, 4, 1)),
-    breakdown_progressions=((0, 5, 6, 0), (0, 1, 5, 4), (0, 6, 5, 1)),
-    chord_bars=4,
-    kick_decay=0.24, kick_pitch=190.0,
-    hat_density=0.85, tribal=0.25, ghost_prob=0.22, roll_prob=0.35, polyrhythm=0.5,
-    bass_octave_prob=0.1, bass_movement_prob=0.45, bass_gate=0.6, bass_cutoff=1200.0, bass_detune=0.004,
-    lead_density=0.45, ornament_prob=0.1, lead_wave="saw_square", arp_grouping=4,
-    acid_density=0.85, acid_accent_prob=0.4, acid_slide_prob=0.2, acid_resonance=9.0,
-    acid_wave="square", acid_cutoff=650.0,
-    pad_brightness=0.35, fx_density=0.85, reverb_size=2.0, delay_feedback=0.38,
-    **_table_params("hightech"),
-)
-
-
-def blend_presets(a: StylePreset, b: StylePreset, t: float = 0.5, name: str = "hybrid") -> StylePreset:
-    """Interpolate numeric parameters and merge discrete choices of two presets."""
-    values = {}
-    for f in fields(StylePreset):
-        va, vb = getattr(a, f.name), getattr(b, f.name)
-        if f.name == "name":
-            values[f.name] = name
-        elif isinstance(va, (bool, str)):
-            values[f.name] = va if t < 0.5 else vb
-        elif isinstance(va, int) and isinstance(vb, int) and f.name != "bpm_range":
-            values[f.name] = int(round(va + (vb - va) * t))
-        elif isinstance(va, float) or isinstance(vb, float):
-            values[f.name] = float(va + (vb - va) * t)
-        elif f.name == "bpm_range":
-            values[f.name] = (min(va[0], vb[0]), max(va[1], vb[1]))
-        else:  # tuples of choices -> ordered union
-            merged = list(va)
-            merged.extend(x for x in vb if x not in merged)
-            values[f.name] = tuple(merged)
-    return StylePreset(**values)
-
-
-HYBRID = replace(blend_presets(GOA, HIGHTECH, 0.5), lead_wave="supersaw", acid_wave="saw",
-                 bpm_range=(140, 146), bass_pattern="16th_hybrid", lead_reverb=True,
-                 tribal_enabled=True, organic=True, kick_punch=0.8,
-                 bass_wave="saw", lead_style="eastern_acid")
-
-STYLE_PRESETS: Dict[str, StylePreset] = {"goa": GOA, "hightech": HIGHTECH, "hybrid": HYBRID}
+STYLE_PRESETS: Dict[str, StylePreset] = {"goa": GOA}
 
 
 def get_preset(style: str) -> StylePreset:

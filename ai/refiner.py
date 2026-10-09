@@ -28,10 +28,6 @@ SUPPORTED_MODELS = {"musicgen": "facebook/musicgen-melody"}
 STYLE_PROMPTS = {
     "goa": ("classic 1990s goa trance, hypnotic rolling 16th-note bassline, psychedelic eastern melodic "
             "lead, lush atmospheric pads, tribal percussion, analog acid squelch"),
-    "hightech": ("high-tech psytrance, driving precise rolling bass, sharp tb-303 acid lines, futuristic "
-                 "sound design, complex glitchy percussion, aggressive energy"),
-    "hybrid": ("psychedelic trance blending classic goa melodies with modern high-tech psytrance production, "
-               "rolling bass, acid lines, tribal and glitch percussion"),
 }
 
 
@@ -41,7 +37,7 @@ class RefinerUnavailable(RuntimeError):
 
 def build_prompt(style: str, bpm: float, key: str, scale: Optional[str] = None) -> str:
     """Text prompt describing the generated track."""
-    desc = STYLE_PROMPTS.get(style, STYLE_PROMPTS["hybrid"])
+    desc = STYLE_PROMPTS[style]
     mode = f" {scale.replace('_', ' ')}" if scale else ""
     return f"{STYLE_LABELS.get(style, style)}: {desc}, {int(round(bpm))} bpm, key of {key}{mode}, instrumental"
 

@@ -30,6 +30,7 @@ try:  # pyfluidsynth may also raise OSError when the native library is missing
 except Exception:  # pragma: no cover - depends on the system
     FLUIDSYNTH_AVAILABLE = False
 
+from synthesis.closer import auto_level, smooth_transitions
 from config.settings import (DEFAULTS, OUTPUT, SIDECHAIN, STEM_GROUPS, STEMS,
                              get_mix, get_preset, stem_group)
 from synthesis.instruments import VOICES
@@ -123,6 +124,14 @@ def _prepare_mix(song, sample_rate: int):
     return mixer, kick_track, kick_audio, duck, n, preset
 
 
+def _closer(mix: np.ndarray, song, sample_rate: int) -> np.ndarray:
+    """Apply smooth transitions + auto-level when the song has sections."""
+    sections = getattr(getattr(song, "arrangement", None), "sections", None)
+    if sections:
+        mix = smooth_transitions(mix, sections, song.bpm, sample_rate)
+    return auto_level(mix, song.bpm, sample_rate)
+
+
 def render_song_audio(song, sample_rate: int = DEFAULTS["sample_rate"], progress=None) -> np.ndarray:
     """Synthesize and mix a whole song. Returns a stereo float32 array in [-1, 1]."""
     mixer, kick_track, kick_audio, duck, n, preset = _prepare_mix(song, sample_rate)
@@ -153,7 +162,8 @@ def render_song_audio(song, sample_rate: int = DEFAULTS["sample_rate"], progress
         wet *= (1.0 - np.float32(0.5) * duck)[:, None]
     master += wet
     del wet
-    return mixer.master(master)
+    mixed = mixer.master(master)
+    return _closer(mixed, song, sample_rate)
 
 
 def _finish_group(mixer: Mixer, master_bus, reverb_bus, delay_bus, duck, base_seed: int) -> np.ndarray:
@@ -219,7 +229,8 @@ def render_song_stems(song, sample_rate: int = DEFAULTS["sample_rate"], progress
     gscale = 1.0 if peak <= 1e-10 else min(1e6, max(0.0, STEMS["peak"] / peak))
     stems = {g: (raw[g] * np.float32(gscale)).astype(np.float32, copy=False)
              for g in STEM_GROUPS}
-    return mixer.master(premix), stems
+    mixed = mixer.master(premix)
+    return _closer(mixed, song, sample_rate), stems
 
 
 # ---------------------------------------------------------------------------

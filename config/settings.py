@@ -100,11 +100,11 @@ MASTERING = {
     "enabled": True,             # master rendered audio before export (--no-master skips it)
     "highpass_hz": 20.0,         # rumble cleanup; zero-phase, keeps the kick fundamental
     "lowmid_hz": 300.0,          # muddy low-mid bell ...
-    "lowmid_db": -2.5,           # ... gentle cut
+    "lowmid_db": -3.0,           # ... gentle cut
     "presence_hz": 3500.0,       # presence bell ...
-    "presence_db": 1.5,          # ... small boost
+    "presence_db": 1.0,           # ... small boost
     "air_hz": 11000.0,           # air band ...
-    "air_db": 1.5,               # ... small boost
+    "air_db": 1.0,                # ... small boost (warmth, not sparkle)
     "width": 1.15,               # mid/side stereo width (1.0 = unchanged)
     "threshold_db": -20.0,       # deeper glue: lets dynamics breathe below the drop
     "ratio": 1.5,
@@ -351,11 +351,11 @@ class MixSettings:
 MIX_PRESETS: Dict[str, MixSettings] = {
     "kick": MixSettings(volume_db=-1.0, highpass=25, compress=0.3),
     "percussion": MixSettings(volume_db=-6.0, highpass=180, sidechain=0.2, reverb_send=0.12, compress=0.4),
-    "bass": MixSettings(volume_db=-2.0, highpass=32, lowpass=4500, sidechain=0.8, compress=0.5),
-    "acid": MixSettings(volume_db=-3.0, pan=0.12, highpass=90, sidechain=0.5, reverb_send=0.15, delay_send=0.3),
-    "lead": MixSettings(volume_db=-12.0, pan=-0.08, highpass=200, sidechain=0.45, reverb_send=0.35, delay_send=0.35),
-    "arp": MixSettings(volume_db=-15.0, pan=0.2, highpass=250, sidechain=0.5, reverb_send=0.3, delay_send=0.45),
-    "pad": MixSettings(volume_db=-15.0, highpass=180, lowpass=9000, sidechain=0.65, reverb_send=0.45),
+    "bass": MixSettings(volume_db=-1.0, highpass=34, lowpass=3800, sidechain=0.75, compress=0.5),
+    "acid": MixSettings(volume_db=-5.0, pan=0.10, highpass=110, sidechain=0.55, reverb_send=0.12, delay_send=0.28),
+    "lead": MixSettings(volume_db=-9.0, pan=-0.06, highpass=220, sidechain=0.5, reverb_send=0.3, delay_send=0.3),
+    "arp": MixSettings(volume_db=-13.5, pan=0.22, highpass=280, sidechain=0.5, reverb_send=0.25, delay_send=0.38),
+    "pad": MixSettings(volume_db=-13.0, highpass=180, lowpass=8000, sidechain=0.6, reverb_send=0.45),
     "texture": MixSettings(volume_db=-19.0, pan=-0.15, highpass=120, sidechain=0.4, reverb_send=0.6),
     "fx": MixSettings(volume_db=-10.0, highpass=60, reverb_send=0.5, delay_send=0.25),
 }

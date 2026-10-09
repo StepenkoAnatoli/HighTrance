@@ -19,31 +19,44 @@ MotifNote = Tuple[int, int, int, bool]   # (step, length in steps, degree, ornam
 # ---------------------------------------------------------------------------
 
 def _motif(ctx: GenerationContext, rng: random.Random, bars: int = 2) -> List[MotifNote]:
+    """A catchy rhythm-first motif: mostly stepwise, chord tones on strong beats,
+    phrase lands on the root or 5th. Repetition + contour = recognition
+    (psytrance-blueprint: rhythm before note choice)."""
     p = ctx.preset
     eastern = "eastern" in p.lead_style
-    lengths = [2, 2, 3, 4, 4, 6, 8] if eastern else [1, 1, 2, 2, 3, 4]
-    moves = [-2, -1, -1, 1, 1, 2, 3, -3] if eastern else [-4, -2, -1, 1, 2, 4, 7, -7]
+    lengths = [2, 2, 3, 4, 4, 6, 8] if eastern else [2, 2, 3, 4, 4]
+    moves = [-1, 1, 1, 2, -1] if eastern else [-2, -1, 1, 1, 2, -2]
+    chord_tones = (0, 2, 4)
     notes: List[MotifNote] = []
-    deg = rng.choice([0, 2, 4, 7])
+    deg = rng.choice(chord_tones)
     s = 0
     total = bars * STEPS_PER_BAR
     while s < total:
-        if rng.random() < p.lead_density + 0.2:
+        if rng.random() < p.lead_density + 0.15:
             length = min(rng.choice(lengths), total - s)
-            deg = int(clamp(deg + rng.choice(moves), -3, 11))
-            notes.append((s, length, deg, length >= 2 and rng.random() < p.ornament_prob))
+            # strong beat (step 0/8) -> land on a chord tone for the settled feel
+            if s % 8 == 0:
+                deg = int(rng.choice(chord_tones)) + (7 if deg > 7 and rng.random() < 0.3 else 0)
+            else:
+                deg = int(clamp(deg + rng.choice(moves), -2, 9))
+            notes.append((s, length, deg, length >= 4 and rng.random() < p.ornament_prob * 0.6))
             s += length
         else:
-            s += rng.choice([1, 2])
+            s += rng.choice([2, 4])          # space, not clutter: rests are part of the hook
+    # resolve: end the phrase on root / 5th (conclusive but open enough)
+    if notes:
+        sl, = [notes[-1][0]]
+        notes[-1] = (notes[-1][0], notes[-1][1], rng.choice((0, 4)), notes[-1][3])
     if not notes:
         notes.append((0, 4, 0, False))
     return notes
 
 
 def _vary(motif: List[MotifNote], rng: random.Random) -> List[MotifNote]:
-    """Answer phrase: keep the first half, re-pitch the second half."""
+    """Answer phrase: same rhythm, second half shifted a step, so B is a
+    recognisable relative of A and the motif stays the track's identity."""
     half = max(n[0] for n in motif) // 2
-    return [(s, l, d if s < half else int(clamp(d + rng.choice([-2, -1, 1, 2, 3]), -3, 11)), o)
+    return [(s, l, d if s < half else int(clamp(d + rng.choice([-1, 1, 2]), -2, 9)), o)
             for s, l, d, o in motif]
 
 

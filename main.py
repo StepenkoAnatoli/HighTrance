@@ -76,6 +76,11 @@ def parse_arguments():
         help="Also render WAV/MP3 (built-in synth; MP3 export additionally needs ffmpeg)"
     )
     parser.add_argument(
+        "--stems",
+        action="store_true",
+        help="Also export per-group stems (drums/bass/leads/pads/fx); needs the built-in renderer"
+    )
+    parser.add_argument(
         "--no-master",
         action="store_true",
         help="Skip the post-render mastering stage (EQ/compression/normalisation)"
@@ -150,7 +155,8 @@ def main():
 
     # Generate the track
     print("\nGenerating track...")
-    result = generator.generate(render_audio=args.render_audio or args.review,
+    result = generator.generate(render_audio=args.render_audio or args.review or args.stems,
+                                stems=args.stems,
                                 audio_format="wav" if args.review else None,
                                 master=False if args.no_master else None)
 

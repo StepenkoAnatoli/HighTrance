@@ -21,8 +21,9 @@ Every track is built from scratch with procedural music theory. HighTrance conta
   - **FX:** risers, impacts, downlifters, zaps and bubbles.
 - **Mixing:** per-track volume, panning, EQ, compression, a real **audio-level kick sidechain** (the rendered kick's own envelope ducks the bass, leads, pads and reverb bus, so the pump follows each kick's actual shape), reverb and delay sends, and a master bus with glue compression and a limiter.
 - **Mastering:** rendered audio goes through an optional post-render mastering stage — high-pass/EQ, mid-side stereo width, bus compression, a brick-wall peak limiter and peak normalisation (skip it with `--no-master`). The chain is pure NumPy/SciPy, with an optional [pedalboard](https://github.com/spotify/pedalboard) (JUCE) backend used automatically when installed and falling back to NumPy otherwise; pin it with `MASTERING["backend"] = "auto" | "numpy" | "pedalboard"`.
+- **Stems:** optionally write per-group stems (`drums`, `bass`, `leads`, `pads`, `fx`) alongside the mix — each group's own delay/reverb/duck tail, scaled by one shared gain so no WAV clips. Built-in renderer only (the FluidSynth path renders one mixed MIDI). See `--stems` / the web checkbox.
 - **Reproducible:** the same seed and the same settings always give the same track.
-- **Export:** a multi-track `.mid` file, plus optional `.wav` (16- or 24-bit) or `.mp3`.
+- **Export:** a multi-track `.mid` file, plus optional `.wav` (16- or 24-bit) or `.mp3`, and optional per-group stem `.wav`s.
 - **Interfaces:** a CLI, a Tkinter GUI, a Gradio browser UI, and a Python API.
 
 ## Installation
@@ -55,13 +56,14 @@ python main.py --style hightech --length 4.5 --seed 42 --render-audio
 python main.py --gui
 ```
 
-`main.py` options: `--style {goa,hightech,hybrid}`, `--bpm`, `--length` (minutes), `--key` (for example `Am`, `F#m`, `Dm`), `--seed`, `--intensity {0.5…1.0}`, `--output`, `--render-audio`, `--no-master`, `--gui`, `--web` (browser UI; generation flags are ignored).
+`main.py` options: `--style {goa,hightech,hybrid}`, `--bpm`, `--length` (minutes), `--key` (for example `Am`, `F#m`, `Dm`), `--seed`, `--intensity {0.5…1.0}`, `--output`, `--render-audio`, `--stems`, `--no-master`, `--gui`, `--web` (browser UI; generation flags are ignored).
 
 The extended CLI adds `auto` values, scale selection, MP3 and renderer choice:
 
 ```bash
 python -m ui.cli --style goa --bpm auto --length auto --key auto --seed 7 \
                  --scale phrygian_dominant --render-audio --format mp3
+python -m ui.cli --render-audio --stems          # mix + per-group stem WAVs
 python -m ui.cli --render-audio --renderer fluidsynth
 python -m ui.cli --render-audio --renderer fluidsynth --soundfont "C:\path\to\Font.sf2"
 ```
@@ -88,8 +90,11 @@ The page keeps the **last 10 runs** (settings, seed and outcome) in
 from the **Load settings from history** dropdown and press **Load settings** to
 restore that run's parameters (same seed reproduces the same track). The
 **Bundle (MIDI + audio)** button zips the latest run's MIDI and audio into
-`output/bundles/` for a single download. History is a log — the files
-themselves stay on disk in `output/`.
+`output/bundles/` for a single download. Tick **Export stems** to also write
+per-group stems (`drums`, `bass`, `leads`, `pads`, `fx`) into
+`output/audio/<track>_stems/` and list them under **Stems (WAV)**; the bundle
+then includes them under `stems/`. Stems are written by the built-in renderer
+only. History is a log — the files themselves stay on disk in `output/`.
 
 Output files go to `output/midi/` and `output/audio/`. Both folders are ignored by git.
 
@@ -164,6 +169,7 @@ from core.generator import TranceGenerator
 
 gen = TranceGenerator(style="goa", bpm=144, length_minutes=4.5, key="Em", seed=2024, intensity=0.9)
 result = gen.generate(render_audio=True)       # dict: midi_path, audio_path, sections, tracks, ...
+result = gen.generate(render_audio=True, stems=True)   # + stem_paths / stems_dir (built-in renderer)
 
 song = gen.compose()                           # in-memory Song (tracks of notes)
 song = gen.regenerate_module(song, "leads", seed=99)   # re-roll one layer only

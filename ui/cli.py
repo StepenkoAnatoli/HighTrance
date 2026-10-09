@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 from typing import Dict, List, Optional
 
 # Windows defaults to the local code page (e.g. cp1252), which cannot encode
@@ -57,6 +58,10 @@ def print_summary(result: Dict) -> None:
     print(f"\n  MIDI  : {result['midi_path']}")
     if result.get("audio_path"):
         print(f"  Audio : {result['audio_path']}")
+    if result.get("stem_paths"):
+        stems_dir = result.get("stems_dir") or "(stems)"
+        groups = ", ".join(Path(p).stem for p in result["stem_paths"].values())
+        print(f"  Stems : {stems_dir}  ({groups})")
     if result.get("ai_audio_path"):
         print(f"  AI    : {result['ai_audio_path']}")
     for err in result.get("errors", []):
@@ -92,6 +97,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--seed", type=int, default=None, help="Seed for reproducibility")
     p.add_argument("--output", default="output", help="Output folder")
     p.add_argument("--render-audio", action="store_true", help="Also render audio")
+    p.add_argument("--stems", action="store_true",
+                   help="Also export per-group stems (drums/bass/leads/pads/fx); built-in renderer only")
     p.add_argument("--review", action="store_true",
                    help="Interactive review loop after rendering (implies --render-audio; in-app playback)")
     p.add_argument("--no-master", action="store_true",
@@ -122,7 +129,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                               scale=args.scale, seed=args.seed, intensity=args.intensity,
                               output_dir=args.output, sample_rate=args.sample_rate,
                               audio_format=args.format, renderer=args.renderer, soundfont=args.soundfont)
-        result = gen.generate(render_audio=args.render_audio or args.review,
+        result = gen.generate(render_audio=args.render_audio or args.review or args.stems,
+                              stems=args.stems,
                               audio_format="wav" if args.review else None,
                               master=False if args.no_master else None)
     except ValueError as e:

@@ -123,8 +123,15 @@ class ReviewSession:
                         self.out(f"No audio device ({e}) — listen manually.")
                 if player is not None:
                     self.out("(Space=play/pause  J/L=seek  Enter=done)")
-                    player.listen()
-                else:
+                    try:
+                        player.listen()
+                    except PlaybackError as e:
+                        # Player opens its stream lazily on first listen, so the
+                        # failure can surface here instead of at construction.
+                        self._playback_broken = True   # permanent: no per-round retry
+                        player = None
+                        self.out(f"No audio device ({e}) — listen manually.")
+                if player is None:
                     self.out(f"Listen externally: {self._audio}")
                     self._read("Press Enter when ready to take notes: ")
 

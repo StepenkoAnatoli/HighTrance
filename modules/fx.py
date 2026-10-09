@@ -37,17 +37,11 @@ def generate(ctx: GenerationContext, rng: random.Random) -> List[Track]:
         for bar in range(section.start_bar, section.end_bar):
             e = energy(ctx, section, bar)
             t0 = bar_start(bar)
-            # whoosh into every new 16-bar phrase inside drops
-            if section.kind == "drop" and (bar - section.start_bar) % 16 == 15 and rng.random() < 0.5 + density / 2:
+            # one whoosh per 16-bar phrase inside drops – signposts, not clutter
+            if section.kind == "drop" and (bar - section.start_bar) % 16 == 15 and rng.random() < 0.6:
                 _fx(track, t0, 4.0, "sweep", 80)
-            # high-tech zaps & lasers at phrase ends
-            if section.kind in ("drop", "build") and is_phrase_end(section, bar, 4):
-                for s in range(STEPS_PER_BAR):
-                    if rng.random() < density * 0.18 * e:
-                        _fx(track, t0 + s * STEP, 0.5, rng.choice(["zap", "laser"]), 90 + rng.randint(-10, 10),
-                            sweep=round(rng.uniform(0.5, 3.0), 2))
-            # goa psychedelic bubbles / gurgles
-            if section.kind in ("intro", "breakdown", "drop", "outro") and rng.random() < density * 0.35:
+            # psychedelic bubbles / gurgles only in calm passages (classic goa PUHE)
+            if section.kind in ("intro", "breakdown", "outro") and rng.random() < density * 0.3:
                 s = rng.randrange(STEPS_PER_BAR)
                 _fx(track, t0 + s * STEP, rng.choice([0.5, 1.0, 2.0]), "bubble", 75 + rng.randint(-10, 10),
                     rate=round(rng.uniform(6, 22), 1))

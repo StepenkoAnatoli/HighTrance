@@ -15,9 +15,9 @@ from config.settings import BEATS_PER_BAR, SECTION_ORDER, STRUCTURE
 
 #: Section name -> (kind, energy at start, energy at end, active layers)
 SECTION_PROFILES: Dict[str, Tuple[str, float, float, FrozenSet[str]]] = {
-    "intro": ("intro", 0.30, 0.50,
+    "intro": ("intro", 0.15, 0.35,
               frozenset({"kick", "percussion", "bass", "pad", "texture", "fx"})),
-    "build1": ("build", 0.50, 0.78,
+    "build1": ("build", 0.42, 0.78,
                frozenset({"kick", "percussion", "bass", "acid", "arp", "pad", "texture", "fx"})),
     "drop1": ("drop", 0.82, 0.88,
               frozenset({"kick", "percussion", "bass", "acid", "lead", "arp", "pad", "fx"})),
@@ -27,7 +27,7 @@ SECTION_PROFILES: Dict[str, Tuple[str, float, float, FrozenSet[str]]] = {
                frozenset({"kick", "percussion", "bass", "acid", "arp", "lead", "pad", "fx"})),
     "drop2": ("drop", 0.95, 1.00,
               frozenset({"kick", "percussion", "bass", "acid", "lead", "arp", "pad", "fx"})),
-    "outro": ("outro", 0.60, 0.20,
+    "outro": ("outro", 0.45, 0.15,
               frozenset({"kick", "percussion", "bass", "acid", "pad", "texture", "fx"})),
 }
 

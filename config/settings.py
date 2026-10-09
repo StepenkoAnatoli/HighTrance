@@ -106,12 +106,12 @@ MASTERING = {
     "air_hz": 11000.0,           # air band ...
     "air_db": 1.5,               # ... small boost
     "width": 1.15,               # mid/side stereo width (1.0 = unchanged)
-    "threshold_db": -12.0,       # gentle bus compressor (glue, not loudness)
-    "ratio": 2.0,
-    "attack_ms": 10.0,
+    "threshold_db": -20.0,       # deeper glue: lets dynamics breathe below the drop
+    "ratio": 1.5,
+    "attack_ms": 2.0,
     "release_ms": 100.0,
-    "knee_threshold": 0.6,       # soft-knee peak control before normalisation ...
-    "knee_ceiling": 0.95,        # ... absorbs EQ-boosted transients
+    "knee_threshold": 0.55,      # soft-knee peak control before normalisation ...
+    "knee_ceiling": 0.85,        # ... absorbs EQ-boosted transients
     "target_peak_db": -1.0,      # final peak-normalisation ceiling
     "backend": "auto",           # "auto" (pedalboard when installed) | "numpy" | "pedalboard"
                                  # spec: docs/superpowers/specs/2026-10-09-sidechain-pedalboard-design.md

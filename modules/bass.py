@@ -51,7 +51,7 @@ def generate(ctx: GenerationContext, rng: random.Random) -> List[Track]:
         fill_riff = _riff(ctx, rng)
         for bar in range(section.start_bar, section.end_bar):
             progress = section.progress(bar)
-            if section.kind == "intro" and section.bars >= 8 and progress < 0.5:
+            if section.kind == "intro" and section.bars >= 8 and progress < 0.75:  # let pads/atmos exhale first
                 continue
             if section.kind == "outro" and progress >= 0.6:
                 continue

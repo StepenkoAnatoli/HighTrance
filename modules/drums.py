@@ -53,6 +53,11 @@ def generate(ctx: GenerationContext, rng: random.Random) -> List[Track]:
 
     for section in ctx.arrangement.sections:
         pat = _section_patterns(ctx, rng)
+        # Soft, quiet openings: the groove must invite the listener in first.
+        vscale = 0.7 if section.kind == "intro" else 0.8 if section.kind == "outro" else 1.0
+
+        def H(track, beat, name, vel, length=0.1):
+            _hit(track, beat, name, int(vel * vscale), length)
         for bar in range(section.start_bar, section.end_bar):
             e = energy(ctx, section, bar)
             t0 = bar_start(bar)
@@ -70,11 +75,11 @@ def generate(ctx: GenerationContext, rng: random.Random) -> List[Track]:
                 elif phrase_end and section.kind == "drop" and pat["kick_var"] == "double":
                     beats = [0, 1, 2, 3, 3.5]
                 for b in beats:
-                    kick.add(t0 + b, 0.25, GM["kick"], 120 if b == int(b) else 100)
+                    kick.add(t0 + b, 0.25, GM["kick"], int((118 + 20 * e) if b == int(b) else 98))
 
             # ---------------- crashes ----------------
             if section.kind == "drop" and (bar - section.start_bar) % 16 == 0:
-                _hit(perc, t0, "crash", 110, 2.0)
+                H(perc, t0, "crash", 110, 2.0)
 
             # ---------------- build-up snare roll ----------------
             if section.kind == "build":
@@ -87,7 +92,7 @@ def generate(ctx: GenerationContext, rng: random.Random) -> List[Track]:
                         rp = ((bar - roll_start) * 4 + beat) / (roll_bars * 4)
                         div = 1 if rp < 0.25 else 2 if rp < 0.5 else 4 if rp < 0.85 else 8
                         for k in range(div):
-                            _hit(perc, t0 + beat + k / div, "snare", int(50 + 70 * rp), 0.5 / div)
+                            H(perc, t0 + beat + k / div, "snare", int(50 + 70 * rp), 0.5 / div)
 
             if not section.has("percussion") or pre_drop:
                 continue
@@ -99,31 +104,31 @@ def generate(ctx: GenerationContext, rng: random.Random) -> List[Track]:
                 beat_pos = s % 4
                 # off-beat open hat – the classic psy "tss"
                 if beat_pos == 2 and e > 0.35:
-                    _hit(perc, t, "hat_open", velocity(88, rng), 0.2)
+                    H(perc, t, "hat_open", velocity(88, rng), 0.2)
                 # rolling closed hats
                 if e > 0.45 and pat["hats"][s] and beat_pos != 2:
-                    _hit(perc, t, "hat_closed", velocity(72 if beat_pos == 0 else 58, rng, 8), 0.08)
+                    H(perc, t, "hat_closed", velocity(72 if beat_pos == 0 else 58, rng, 8), 0.08)
                 # clap / snare on 2 & 4
                 if s in (4, 12) and e > 0.55:
-                    _hit(perc, t, "clap", velocity(100, rng, 4), 0.2)
+                    H(perc, t, "clap", velocity(100, rng, 4), 0.2)
                     if pat["snare_layer"]:
-                        _hit(perc, t, "snare", velocity(85, rng, 4), 0.2)
+                        H(perc, t, "snare", velocity(85, rng, 4), 0.2)
                 # ride on off-beats in high energy parts
                 if beat_pos == 2 and e > 0.8:
-                    _hit(perc, t, "ride", velocity(70, rng), 0.3)
+                    H(perc, t, "ride", velocity(70, rng), 0.3)
                 # shaker 16ths (organic goa flavour)
                 if pat["shaker"] and e > 0.3:
-                    _hit(perc, t, "shaker", velocity(64 if beat_pos == 2 else 42, rng, 5), 0.08)
+                    H(perc, t, "shaker", velocity(64 if beat_pos == 2 else 42, rng, 5), 0.08)
                 # tribal pattern
                 inst = pat["tribal"][s]
                 if inst and e > 0.3:
-                    _hit(perc, t, inst, velocity(70 + 25 * e, rng, 10), 0.15)
+                    H(perc, t, inst, velocity(70 + 25 * e, rng, 10), 0.15)
                 # high-tech ghost snares
                 if pat["ghosts"][s] and e > 0.55:
-                    _hit(perc, t, "snare", velocity(38, rng, 8), 0.06)
+                    H(perc, t, "snare", velocity(38, rng, 8), 0.06)
                 # 3-over-4 polyrhythm, continuous across bar lines
                 if pat["poly"] and e > 0.5 and (bar * STEPS_PER_BAR + s) % 3 == 0:
-                    _hit(perc, t, pat["poly_inst"], velocity(62, rng, 8), 0.08)
+                    H(perc, t, pat["poly_inst"], velocity(62, rng, 8), 0.08)
 
             # fills / rolls at phrase ends
             if phrase_end and section.kind != "build" and rng.random() < p.roll_prob * (0.5 + e):
@@ -131,6 +136,6 @@ def generate(ctx: GenerationContext, rng: random.Random) -> List[Track]:
                 if p.tribal_enabled and p.organic and rng.random() < 0.5:
                     inst = rng.choice(["tom_low", "tom_mid", "conga_open"])
                 for k in range(8):
-                    _hit(perc, t0 + 3 + k * 0.125, inst, int(55 + k * 7), 0.06)
+                    H(perc, t0 + 3 + k * 0.125, inst, int(55 + k * 7), 0.06)
 
     return [kick.sort(), perc.sort()]

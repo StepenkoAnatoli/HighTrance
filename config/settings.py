@@ -129,6 +129,8 @@ MASTERING = {
     "knee_threshold": 0.6,       # soft-knee peak control before normalisation ...
     "knee_ceiling": 0.95,        # ... absorbs EQ-boosted transients
     "target_peak_db": -1.0,      # final peak-normalisation ceiling
+    "backend": "auto",           # "auto" (pedalboard when installed) | "numpy" | "pedalboard"
+                                 # spec: docs/superpowers/specs/2026-10-09-sidechain-pedalboard-design.md
 }
 
 # ======================
@@ -425,3 +427,17 @@ MIX_PRESETS: Dict[str, MixSettings] = {
 
 def get_mix(track_name: str) -> MixSettings:
     return MIX_PRESETS.get(track_name, MixSettings())
+
+
+# ======================
+# SIDECHAIN (synthesis/mixer.py, synthesis/audio_render.py)
+# ======================
+
+SIDECHAIN = {
+    # "audio": duck from the rendered kick's amplitude envelope (real, audio-level)
+    # "note":  legacy synthetic curve from the kick note-start times
+    "mode": "audio",
+    "gate": 0.35,         # envelope level below which the duck is fully open
+    "hold_ms": 5.0,       # peak-hold window (also gives ~half this as lookahead)
+    "release_ms": 110.0,  # decay used by the "note" fallback curve
+}

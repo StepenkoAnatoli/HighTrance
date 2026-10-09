@@ -6,7 +6,8 @@ from scipy import signal
 
 from core.generator import TranceGenerator
 from synthesis import dsp
-from synthesis.audio_processor import AudioProcessor, process_audio, read_wav
+from synthesis.audio_processor import (PEDALBOARD_AVAILABLE, AudioProcessor, PedalboardProcessor,
+                                       get_processor, process_audio, read_wav)
 from synthesis.audio_render import write_wav
 
 
@@ -171,3 +172,108 @@ def test_generate_master_flag(monkeypatch, tmp_path):
     attempted = gen.generate(render_audio=True, master=True)
     assert attempted["audio_path"] == fake                # raw render kept on failure
     assert any(e.startswith("Mastering failed") for e in attempted["errors"])
+
+
+# --------------------------------------------------------------------------- backend selection
+
+def _band_rms(a: np.ndarray, lo: float, hi: float, sr: int) -> float:
+    sos = signal.butter(4, [lo, hi], btype="bandpass", fs=sr, output="sos")
+    return float(np.sqrt((signal.sosfilt(sos, a, axis=0) ** 2).mean()))
+
+
+def test_get_processor_selects_backends():
+    assert isinstance(get_processor("numpy"), AudioProcessor)
+    assert not isinstance(get_processor("numpy"), PedalboardProcessor)
+    if PEDALBOARD_AVAILABLE:
+        assert isinstance(get_processor("auto"), PedalboardProcessor)
+        assert isinstance(get_processor("pedalboard"), PedalboardProcessor)
+    else:
+        assert isinstance(get_processor("auto"), AudioProcessor)
+    with pytest.raises(ValueError):
+        get_processor("bogus")
+
+
+def test_get_processor_pedalboard_unavailable(monkeypatch):
+    monkeypatch.setattr("synthesis.audio_processor.PEDALBOARD_AVAILABLE", False)
+    assert isinstance(get_processor("auto"), AudioProcessor)      # auto falls back
+    with pytest.raises(RuntimeError):
+        get_processor("pedalboard")
+
+
+def test_process_audio_processor_wins_over_backend(tmp_path):
+    sr = 8000
+    src = write_wav(_tone(150, 0.7, 1.0, sr)[:, None], tmp_path / "raw.wav", sr, 16)
+    sentinel = AudioProcessor()
+    out = process_audio(src, str(tmp_path / "x.wav"), processor=sentinel, backend="pedalboard")
+    audio, _, _ = read_wav(out)
+    assert np.isfinite(audio).all()
+
+
+# --------------------------------------------------------------------------- pedalboard chain
+
+def _pb():
+    pytest.importorskip("pedalboard")
+    return PedalboardProcessor()
+
+
+def test_pedalboard_processor_peak_shape_stereo():
+    sr = 8000
+    x = np.stack([_tone(100, 0.8, 0.5, sr), _tone(300, 0.4, 0.5, sr)], axis=1)
+    y = _pb().process(x, sr)
+    assert y.shape == x.shape and np.isfinite(y).all()
+    assert not np.allclose(y[:, 0], y[:, 1], atol=1e-3)
+    assert float(np.abs(y).max()) == pytest.approx(10 ** (-1.0 / 20), abs=0.005)
+
+
+def test_pedalboard_processor_highpass_removes_rumble_but_keeps_bass():
+    sr = 8000
+    t = np.arange(sr * 2) / sr
+    base = (0.4 * np.sin(2 * np.pi * 12 * t) + 0.4 * np.sin(2 * np.pi * 60 * t)).astype(np.float32)
+    x = np.stack([base, base], axis=1)
+    y = _pb().process(x, sr)
+    assert _band_rms(y, 1, 18, sr) < _band_rms(x, 1, 18, sr) * 0.5      # rumble removed
+    assert _band_rms(y, 55, 65, sr) > _band_rms(x, 55, 65, sr) * 0.7    # kick fundamental kept
+
+
+def test_pedalboard_processor_reduces_dynamic_range():
+    sr = 8000
+    loud, quiet = _tone(150, 0.9, 1.0, sr), _tone(150, 0.05, 1.0, sr)
+    x = np.stack([np.concatenate([loud, quiet])] * 2, axis=1)
+    y = _pb().process(x, sr)
+    before = np.abs(x[: len(loud)]).max() / np.abs(x[len(loud):]).max()
+    after = np.abs(y[: len(loud)]).max() / np.abs(y[len(loud):]).max()
+    assert after < before * 0.9
+
+
+def test_pedalboard_processor_accepts_mono():
+    sr = 8000
+    x = _tone(150, 0.6, 1.0, sr)[:, None]
+    y = _pb().process(x, sr)
+    assert y.shape == x.shape and np.isfinite(y).all()
+
+
+def test_numpy_processor_accepts_mono():
+    y = AudioProcessor().process(_tone(150, 0.6, 1.0, 8000)[:, None], 8000)
+    assert y.shape == (8000, 1) and np.isfinite(y).all()
+
+
+def test_pedalboard_processor_short_buffers():
+    p = _pb()
+    target = 10 ** (-1.0 / 20)
+    for shape in [(1, 1), (2, 2), (4, 2)]:
+        y = p.process(np.full(shape, 0.5, dtype=np.float32), 8000)
+        assert y.shape == shape and np.isfinite(y).all()
+        assert float(np.abs(y).max()) == pytest.approx(target, abs=0.005)
+
+
+def test_process_audio_both_backends(tmp_path):
+    pytest.importorskip("pedalboard")
+    sr = 8000
+    x = np.stack([_tone(100, 0.9, 2.0, sr), _tone(300, 0.3, 2.0, sr)], axis=1)
+    src = write_wav(x, tmp_path / "raw.wav", sr, 16)
+    target = 10 ** (-1.0 / 20)
+    for backend in ("numpy", "pedalboard"):
+        out = process_audio(src, str(tmp_path / f"{backend}.wav"), backend=backend)
+        audio, _, _ = read_wav(out)
+        assert audio.shape == x.shape and np.isfinite(audio).all()
+        assert float(np.abs(audio).max()) == pytest.approx(target, abs=0.005)

@@ -19,8 +19,8 @@ Every track is built from scratch with procedural music theory. HighTrance conta
   - **Leads:** a TB-303-style acid line (slides and accents), psychedelic leads and arpeggios.
   - **Pads:** atmospheric pads and evolving textures.
   - **FX:** risers, impacts, downlifters, zaps and bubbles.
-- **Mixing:** per-track volume, panning, EQ, compression, kick sidechain, reverb and delay sends, and a master bus with glue compression and a limiter.
-- **Mastering:** rendered audio goes through an optional post-render mastering stage — zero-phase high-pass/EQ, mid-side stereo width, gentle bus compression, a soft-knee peak limiter and peak normalisation (skip it with `--no-master`).
+- **Mixing:** per-track volume, panning, EQ, compression, a real **audio-level kick sidechain** (the rendered kick's own envelope ducks the bass, leads, pads and reverb bus, so the pump follows each kick's actual shape), reverb and delay sends, and a master bus with glue compression and a limiter.
+- **Mastering:** rendered audio goes through an optional post-render mastering stage — high-pass/EQ, mid-side stereo width, bus compression, a brick-wall peak limiter and peak normalisation (skip it with `--no-master`). The chain is pure NumPy/SciPy, with an optional [pedalboard](https://github.com/spotify/pedalboard) (JUCE) backend used automatically when installed and falling back to NumPy otherwise; pin it with `MASTERING["backend"] = "auto" | "numpy" | "pedalboard"`.
 - **Reproducible:** the same seed and the same settings always give the same track.
 - **Export:** a multi-track `.mid` file, plus optional `.wav` (16- or 24-bit) or `.mp3`.
 - **Interfaces:** a CLI, a Tkinter GUI, a Gradio browser UI, and a Python API.

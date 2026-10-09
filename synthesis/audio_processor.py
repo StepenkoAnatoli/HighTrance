@@ -22,6 +22,13 @@ from config.settings import MASTERING
 from synthesis import dsp
 from synthesis.audio_render import write_wav
 
+try:  # optional JUCE-based mastering backend (spec 2026-10-09-sidechain-pedalboard-design.md)
+    from pedalboard import (BrickwallLimiter, Compressor, HighpassFilter, HighShelfFilter,
+                            PeakFilter, Pedalboard)
+    PEDALBOARD_AVAILABLE = True
+except Exception:  # pragma: no cover - depends on the system
+    PEDALBOARD_AVAILABLE = False
+
 
 def read_wav(path) -> Tuple[np.ndarray, int, int]:
     """Read a PCM WAV file.
@@ -124,7 +131,7 @@ class AudioProcessor:
         (release) one-pole smoothing of the peak detector, which approximates
         asymmetric ballistics while staying fully vectorised.
         """
-        det = np.maximum(np.abs(x[:, 0]), np.abs(x[:, 1]))
+        det = np.maximum(np.abs(x[:, 0]), np.abs(x[:, -1]))   # works for mono (n,1) and stereo (n,2)
         att = np.float32(np.exp(-1.0 / (self.attack_ms * 0.001 * sr)))
         rel = np.float32(np.exp(-1.0 / (self.release_ms * 0.001 * sr)))
         fast = signal.lfilter(np.asarray([1.0 - att], dtype=np.float32),
@@ -169,8 +176,8 @@ class AudioProcessor:
         return x
 
     # ------------------------------------------------------------------ chain
-    def process(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
-        """Return a mastered copy of ``audio`` – a float array shaped (n, 1) or (n, 2)."""
+    def _prepare(self, audio: np.ndarray) -> np.ndarray:
+        """Validate input and return a float32 ``(n, 1)`` or ``(n, 2)`` copy."""
         x = np.array(audio, dtype=np.float32, copy=True)
         if x.ndim == 1:
             x = x[:, None]
@@ -178,6 +185,11 @@ class AudioProcessor:
             raise ValueError(f"Expected a mono or stereo array, got shape {x.shape}")
         if not np.isfinite(x).all():
             raise ValueError("Audio contains non-finite samples")
+        return x
+
+    def process(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
+        """Return a mastered copy of ``audio`` – a float array shaped (n, 1) or (n, 2)."""
+        x = self._prepare(audio)
         if x.shape[0] == 0:
             return x
         x = self._eq(x, sample_rate)
@@ -187,15 +199,85 @@ class AudioProcessor:
         return self._normalize(x)
 
 
+class PedalboardProcessor(AudioProcessor):
+    """Mastering chain built on :mod:`pedalboard` (JUCE DSP) with a NumPy fallback.
+
+    Same stage order as :class:`AudioProcessor` — EQ → mid/side width → bus
+    compressor → brick-wall limiter → peak normalise — but EQ, compression and
+    limiting are pedalboard plugins. The stereo widen and the final peak
+    normalise are the inherited NumPy stages (pedalboard has no width plugin).
+
+    ``pedalboard`` reads arrays as ``(channels, samples)``, so every plugin call
+    transposes in and out. Buffers shorter than 8 samples are too small for
+    meaningful filtering/compression and are returned peak-normalised only.
+    """
+
+    @staticmethod
+    def _run(board, x: np.ndarray, sample_rate: int) -> np.ndarray:
+        y = board(np.ascontiguousarray(x.T), sample_rate, reset=True)
+        return np.ascontiguousarray(y.T, dtype=np.float32)
+
+    def _pb_eq(self, x: np.ndarray, sample_rate: int) -> np.ndarray:
+        # pedalboard's HighpassFilter is first-order; four stages ≈ the NumPy
+        # zero-phase 2nd-order slope (sosfiltfilt squares the magnitude).
+        board = Pedalboard(
+            [HighpassFilter(self.highpass_hz) for _ in range(4)] +
+            [PeakFilter(self.lowmid_hz, self.lowmid_db, 1.0),
+             PeakFilter(self.presence_hz, self.presence_db, 0.8),
+             HighShelfFilter(self.air_hz, self.air_db, 0.7)])
+        return self._run(board, x, sample_rate)
+
+    def _pb_compress(self, x: np.ndarray, sample_rate: int) -> np.ndarray:
+        board = Pedalboard([Compressor(self.threshold_db, self.ratio, self.attack_ms, self.release_ms)])
+        return self._run(board, x, sample_rate)
+
+    def _pb_limit(self, x: np.ndarray, sample_rate: int) -> np.ndarray:
+        board = Pedalboard([BrickwallLimiter(ceiling_db=self.target_peak_db)])
+        return self._run(board, x, sample_rate)
+
+    def process(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
+        x = self._prepare(audio)
+        if x.shape[0] == 0:
+            return x
+        if x.shape[0] < 8:            # degenerate buffer: skip pedalboard entirely
+            return self._normalize(x)
+        x = self._pb_eq(x, sample_rate)
+        x = self._widen(x)             # inherited NumPy mid/side
+        x = self._pb_compress(x, sample_rate)
+        x = self._pb_limit(x, sample_rate)
+        return self._normalize(x)      # inherited NumPy peak normalise
+
+
+def get_processor(backend: Optional[str] = None) -> AudioProcessor:
+    """Return the mastering processor for ``backend`` (default ``MASTERING["backend"]``).
+
+    * ``"auto"``      – pedalboard when importable, else the NumPy chain
+    * ``"numpy"``     – the pure NumPy/SciPy chain
+    * ``"pedalboard"`` – the JUCE chain (raises if pedalboard is not installed)
+    """
+    backend = backend or MASTERING.get("backend", "auto")
+    if backend == "numpy":
+        return AudioProcessor()
+    if backend == "pedalboard":
+        if not PEDALBOARD_AVAILABLE:
+            raise RuntimeError("pedalboard mastering backend requested but pedalboard is not installed")
+        return PedalboardProcessor()
+    if backend == "auto":
+        return PedalboardProcessor() if PEDALBOARD_AVAILABLE else AudioProcessor()
+    raise ValueError(f"Unknown mastering backend: {backend!r}")
+
+
 def process_audio(input_file, output_file: Optional[str] = None,
-                  processor: Optional[AudioProcessor] = None) -> str:
+                  processor: Optional[AudioProcessor] = None,
+                  backend: Optional[str] = None) -> str:
     """Read a WAV file, master it and write the result.
 
     The default output is ``<input>_mastered.wav`` next to the input, so the
-    raw render is kept. Returns the path of the written file.
+    raw render is kept. Returns the path of the written file. An explicit
+    ``processor`` wins over ``backend``.
     """
     audio, sample_rate, bit_depth = read_wav(input_file)
-    mastered = (processor or AudioProcessor()).process(audio, sample_rate)
+    mastered = (processor or get_processor(backend)).process(audio, sample_rate)
     if output_file is None:
         input_path = Path(input_file)
         output_file = input_path.with_name(input_path.stem + "_mastered.wav")

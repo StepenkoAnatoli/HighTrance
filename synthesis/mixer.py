@@ -9,9 +9,9 @@ from __future__ import annotations
 from typing import Dict, Iterable, Optional
 
 import numpy as np
-from scipy import signal
+from scipy import ndimage, signal
 
-from config.settings import DEFAULTS, MixSettings, get_mix
+from config.settings import DEFAULTS, SIDECHAIN, MixSettings, get_mix
 from synthesis import dsp
 
 
@@ -22,13 +22,16 @@ def db_to_gain(db: float) -> float:
 class Mixer:
     def __init__(self, intensity: float = DEFAULTS["intensity"], sample_rate: int = DEFAULTS["sample_rate"],
                  bpm: float = DEFAULTS["bpm"], reverb_size: float = 2.6, delay_feedback: float = 0.45,
-                 overrides: Optional[Dict[str, MixSettings]] = None):
+                 overrides: Optional[Dict[str, MixSettings]] = None,
+                 sidechain_mode: Optional[str] = None):
         self.intensity = intensity
         self.sr = sample_rate
         self.bpm = bpm
         self.reverb_size = reverb_size
         self.delay_feedback = delay_feedback
         self.overrides = overrides or {}
+        # Resolve at construction time (not as a default arg) so config/tests can override it.
+        self.sidechain_mode = sidechain_mode or SIDECHAIN["mode"]
 
     def settings(self, track_name: str) -> MixSettings:
         return self.overrides.get(track_name) or get_mix(track_name)
@@ -47,6 +50,33 @@ class Mixer:
             e = min(n, s + seg_len)
             np.maximum(curve[s:e], shape[: e - s], out=curve[s:e])
         return curve
+
+    def audio_sidechain(self, kick: np.ndarray, n: int, *, gate: float = SIDECHAIN["gate"],
+                        hold_ms: float = SIDECHAIN["hold_ms"]) -> np.ndarray:
+        """0..1 ducking curve from the **rendered kick audio** (real, audio-level sidechain).
+
+        ``kick`` is the kick track's buffer, either ``(n,)`` or ``(n, channels)``
+        (a 2-D input is mono-ised). The rectified kick is peak-held over a short
+        window (the centered filter also gives ~``hold_ms/2`` of lookahead, so the
+        duck reaches full depth on the onset) and normalised to its own peak; the
+        gate then maps the envelope onto ``[0, 1]``, so the duck recovers fully in
+        the gaps between kicks and follows each kick's actual level. Silence
+        yields an all-zero curve (no ducking).
+        """
+        x = np.abs(np.asarray(kick, dtype=np.float64))
+        if x.ndim == 2:
+            x = x.mean(axis=1)
+        if x.size < n:
+            x = np.pad(x, (0, n - x.size))
+        else:
+            x = x[:n]
+        size = max(3, int(hold_ms * 0.001 * self.sr))
+        env = ndimage.maximum_filter1d(x, size=size, mode="nearest")
+        peak = float(env.max()) if env.size else 0.0
+        if peak <= 0.0:
+            return np.zeros(n, dtype=np.float32)
+        env /= peak
+        return np.clip((env - gate) / (1.0 - gate), 0.0, 1.0).astype(np.float32)
 
     def eq(self, x: np.ndarray, highpass: float = 0.0, lowpass: float = 0.0) -> np.ndarray:
         if highpass > 0:

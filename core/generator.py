@@ -180,14 +180,16 @@ class TranceGenerator:
 
     # ------------------------------------------------------------------ files
     def generate(self, render_audio: bool = False, audio_format: Optional[str] = None,
-                 song: Optional[Song] = None, progress=None, master: Optional[bool] = None) -> Dict:
+                 song: Optional[Song] = None, progress=None, master: Optional[bool] = None,
+                 stems: bool = False) -> Dict:
         """
         Main generation method.
         Returns a dictionary with information about the generated track.
 
         ``master`` runs the post-render mastering stage (EQ / compression /
         normalisation, see ``synthesis.audio_processor``); ``None`` honours
-        ``MASTERING["enabled"]``.
+        ``MASTERING["enabled"]``. ``stems`` additionally writes per-group
+        stem WAVs (built-in renderer only); it implies nothing about the mix.
         """
         fmt = None
         if render_audio:
@@ -230,7 +232,14 @@ class TranceGenerator:
             "audio_path": None,
             "song": song,
             "errors": [],
+            "stem_paths": {},
+            "stems_dir": None,
         }
+
+        if stems and not render_audio:
+            msg = "Stem export needs audio rendering; ignoring stems"
+            result["errors"].append(msg)
+            self._log(msg)
 
         if render_audio:
             from synthesis.audio_render import AudioGenerator
@@ -240,8 +249,23 @@ class TranceGenerator:
                                            bit_depth=self.bit_depth, renderer=self.renderer)
                 self._log("Rendering audio (built-in synthesizer)..." if self.renderer != "fluidsynth"
                           else "Rendering audio (FluidSynth)...")
-                result["audio_path"] = audio_gen.render(midi_path, "wav", audio_dir / f"{stem}.wav",
-                                                        song=song, progress=progress)
+                want_stems = bool(stems)
+                if want_stems and self.renderer == "fluidsynth":
+                    msg = "Stem export needs the built-in renderer; skipping stems"
+                    result["errors"].append(msg)
+                    self._log(msg)
+                    want_stems = False
+                if want_stems:
+                    self._log("Rendering audio + stems (built-in synthesizer)...")
+                    mix_path, stem_paths = audio_gen.render_song_stems(
+                        song, audio_dir / f"{stem}.wav",
+                        stems_dir=audio_dir / f"{stem}_stems", progress=progress)
+                    result["audio_path"] = mix_path
+                    result["stem_paths"] = stem_paths
+                    result["stems_dir"] = str(audio_dir / f"{stem}_stems")
+                else:
+                    result["audio_path"] = audio_gen.render(midi_path, "wav", audio_dir / f"{stem}.wav",
+                                                            song=song, progress=progress)
 
                 do_master = MASTERING["enabled"] if master is None else bool(master)
                 if do_master:

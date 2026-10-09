@@ -30,7 +30,8 @@ try:  # pyfluidsynth may also raise OSError when the native library is missing
 except Exception:  # pragma: no cover - depends on the system
     FLUIDSYNTH_AVAILABLE = False
 
-from config.settings import DEFAULTS, OUTPUT, SIDECHAIN, get_mix, get_preset
+from config.settings import (DEFAULTS, OUTPUT, SIDECHAIN, STEM_GROUPS, STEMS,
+                             get_mix, get_preset, stem_group)
 from synthesis.instruments import VOICES
 from synthesis.mixer import Mixer
 
@@ -85,8 +86,14 @@ def render_track(track, bpm: float, sample_rate: int, n_samples: int, preset) ->
     return out
 
 
-def render_song_audio(song, sample_rate: int = DEFAULTS["sample_rate"], progress=None) -> np.ndarray:
-    """Synthesize and mix a whole song. Returns a stereo float32 array in [-1, 1]."""
+def _prepare_mix(song, sample_rate: int):
+    """Shared render prefix: preset, mixer, kick and the duck curve.
+
+    Returns ``(mixer, kick_track, kick_audio, duck, n, preset)``. This is
+    pure with respect to the mix buses, so the default (single-bus) render
+    and the per-group stems render share it without changing the default
+    render's bytes.
+    """
     preset = get_preset(song.style)
     spb = 60.0 / song.bpm
     n = int((song.arrangement.total_beats * spb + preset.reverb_size + 1.0) * sample_rate)
@@ -113,6 +120,12 @@ def render_song_audio(song, sample_rate: int = DEFAULTS["sample_rate"], progress
         duck = mixer.sidechain_curve(kick_times, n, release=SIDECHAIN["release_ms"] * 0.001)
     else:
         duck = None
+    return mixer, kick_track, kick_audio, duck, n, preset
+
+
+def render_song_audio(song, sample_rate: int = DEFAULTS["sample_rate"], progress=None) -> np.ndarray:
+    """Synthesize and mix a whole song. Returns a stereo float32 array in [-1, 1]."""
+    mixer, kick_track, kick_audio, duck, n, preset = _prepare_mix(song, sample_rate)
 
     master = np.zeros((n, 2), dtype=np.float32)
     reverb_bus = np.zeros(n, dtype=np.float32)
@@ -141,6 +154,72 @@ def render_song_audio(song, sample_rate: int = DEFAULTS["sample_rate"], progress
     master += wet
     del wet
     return mixer.master(master)
+
+
+def _finish_group(mixer: Mixer, master_bus, reverb_bus, delay_bus, duck, base_seed: int) -> np.ndarray:
+    """Apply the delay/reverb/duck tail to one group's buses.
+
+    This is the per-group equivalent of the single-bus tail in
+    ``render_song_audio``. ``mixer.reverb`` is LTI for a fixed ``base_seed``
+    (the IR depends only on the seed, reverb size and sample rate), so the
+    reverb return commutes with summing groups; the ping-pong delay has
+    feedback and therefore does not, which is the documented stems trade-off
+    (spec 2026-10-09-stems-export-design.md, D2).
+    """
+    delayed = mixer.delay(delay_bus)
+    out = master_bus + delayed
+    rev = reverb_bus + delayed.mean(axis=1) * 0.5
+    wet = mixer.reverb(rev, seed=base_seed)
+    if duck is not None:   # pump the reverb tail with the kick as well
+        wet = wet * (1.0 - np.float32(0.5) * duck)[:, None]
+    return out + wet
+
+
+def render_song_stems(song, sample_rate: int = DEFAULTS["sample_rate"], progress=None):
+    """Render a song into per-group stems plus the mastered mix.
+
+    Returns ``(mix, stems)`` where ``mix`` is the mastered stereo mix
+    (identical DSP to :func:`render_song_audio`) and ``stems`` maps each
+    group in :data:`STEM_GROUPS` order to its stereo float32 stem. Stems
+    are the group's own delay/reverb/duck tail, scaled by one shared gain
+    so the loudest stem peaks at ``STEMS["peak"]`` and no written WAV
+    clips; their sum reconstructs ``STEMS["peak"]/peak * premix``.
+    """
+    mixer, kick_track, kick_audio, duck, n, preset = _prepare_mix(song, sample_rate)
+    dry_g = {g: np.zeros((n, 2), dtype=np.float32) for g in STEM_GROUPS}
+    rev_g = {g: np.zeros(n, dtype=np.float32) for g in STEM_GROUPS}
+    dly_g = {g: np.zeros(n, dtype=np.float32) for g in STEM_GROUPS}
+    for i, track in enumerate(song.tracks):
+        if progress:
+            progress(f"Rendering {track.name}", i / (len(song.tracks) + 1))
+        stereo = kick_audio if track is kick_track else render_track(track, song.bpm, sample_rate, n, preset)
+        dry, rev, dly = mixer.process_track(track.name, stereo, duck)
+        g = stem_group(track.name)
+        dry_g[g] += dry
+        rev_g[g] += rev
+        dly_g[g] += dly
+        del stereo, dry
+    del kick_audio
+    if progress:
+        progress("Mixing", len(song.tracks) / (len(song.tracks) + 1))
+
+    base_seed = song.seed % (2**32)
+    raw = {g: _finish_group(mixer, dry_g[g], rev_g[g], dly_g[g], duck, base_seed)
+           for g in STEM_GROUPS}
+    del dry_g, rev_g, dly_g
+
+    premix = np.zeros((n, 2), dtype=np.float32)
+    peak = 0.0
+    for g in STEM_GROUPS:
+        raw[g] = np.nan_to_num(raw[g], nan=0.0, posinf=0.0, neginf=0.0)
+        p = float(np.max(np.abs(raw[g]))) if raw[g].size else 0.0
+        if p > peak:
+            peak = p
+        premix += raw[g]
+    gscale = 1.0 if peak <= 1e-10 else min(1e6, max(0.0, STEMS["peak"] / peak))
+    stems = {g: (raw[g] * np.float32(gscale)).astype(np.float32, copy=False)
+             for g in STEM_GROUPS}
+    return mixer.master(premix), stems
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +252,24 @@ def write_wav(audio: np.ndarray, path, sample_rate: int = DEFAULTS["sample_rate"
                                   axis=1).astype(np.uint8).tobytes()
             wf.writeframes(frames)
     return str(path)
+
+
+def write_stems(stems: Dict[str, np.ndarray], out_dir, sample_rate: int = DEFAULTS["sample_rate"],
+                bit_depth: int = DEFAULTS["bit_depth"]) -> Dict[str, str]:
+    """Write one WAV per stem group, in ``STEM_GROUPS`` order.
+
+    Every group present in ``stems`` gets a ``<group>.wav``; a silent group
+    becomes digital silence rather than being skipped (a stable, predictable
+    set). Returns ``{group: path}``.
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths: Dict[str, str] = {}
+    for group in STEM_GROUPS:
+        if group in stems:
+            paths[group] = write_wav(stems[group], out_dir / f"{group}.wav",
+                                     sample_rate=sample_rate, bit_depth=bit_depth)
+    return paths
 
 
 def wav_to_mp3(wav_path, mp3_path=None, bitrate: str = "320k") -> str:
@@ -287,6 +384,20 @@ class AudioGenerator:
         output_path = Path(output_path) if output_path else self._default_output(song.title, ".wav")
         audio = render_song_audio(song, self.sample_rate, progress=progress)
         return write_wav(audio, output_path, self.sample_rate, self.bit_depth)
+
+    def render_song_stems(self, song, output_path=None, stems_dir=None, progress=None):
+        """Render a song to a mastered mix WAV plus per-group stem WAVs.
+
+        Returns ``(mix_path, {group: stem_path})``. Stems are written as
+        WAVs only; an MP3 conversion requested by the caller applies to the
+        mix alone.
+        """
+        output_path = Path(output_path) if output_path else self._default_output(song.title, ".wav")
+        stems_dir = Path(stems_dir) if stems_dir else output_path.parent / (output_path.stem + "_stems")
+        mix, stems_dict = render_song_stems(song, self.sample_rate, progress=progress)
+        wav_path = write_wav(mix, output_path, self.sample_rate, self.bit_depth)
+        stem_paths = write_stems(stems_dict, stems_dir, self.sample_rate, self.bit_depth)
+        return str(wav_path), stem_paths
 
     def render(self, midi_path=None, output_format: str = "wav", output_path=None, song=None, progress=None) -> str:
         """

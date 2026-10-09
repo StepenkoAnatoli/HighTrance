@@ -37,7 +37,8 @@ def _entry(**over):
     entry = {"time": "2026-10-08 22:15:03", "style": "goa", "bpm": 142.0,
              "length": 4.5, "key": "Am", "scale": "minor", "seed": 777,
              "intensity": 0.85, "renderer": "fluidsynth", "format": "wav",
-             "render_audio": True, "master": True, "duration_seconds": 269.0,
+             "render_audio": True, "master": True, "stems": False,
+             "duration_seconds": 269.0,
              "generation_time": 12.3, "status": "OK", "error": None,
              "midi": "track.mid", "audio": "track.wav"}
     entry.update(over)
@@ -110,9 +111,9 @@ def test_param_mapping_and_seed_zero_randomised(monkeypatch, tmp_path):
     calls = _stub(monkeypatch, result=_result_files(tmp_path))
     rec, prog_calls = _progress_recorder()
 
-    status, player, midi, audio, grid, upd = web.generate_track(
+    status, player, midi, audio, stems_files, grid, upd = web.generate_track(
         "goa", 142, 4.5, "Am", "auto", 0, 0.85, "fluidsynth", "wav",
-        True, True, progress=rec)
+        True, True, False, progress=rec)
 
     init = calls["init"][0]
     assert init["style"] == "goa" and init["bpm"] == 142
@@ -152,9 +153,9 @@ def test_length_out_of_range_is_friendly_and_skips_generator(monkeypatch):
     calls = _stub(monkeypatch)
     rec, _ = _progress_recorder()
 
-    status, player, midi, audio, grid, upd = web.generate_track(
+    status, player, midi, audio, stems_files, grid, upd = web.generate_track(
         "goa", 142, 9.0, "Am", "auto", 1, 0.85, "auto", "wav",
-        True, True, progress=rec)
+        True, True, False, progress=rec)
 
     assert "❌ Length must be between 3 and 6 minutes." in status
     assert player is None and midi is None and audio is None
@@ -167,9 +168,9 @@ def test_generator_exception_becomes_error_status(monkeypatch, capsys):
     _stub(monkeypatch, exc=RuntimeError("boom"))
     rec, _ = _progress_recorder()
 
-    status, player, midi, audio, grid, upd = web.generate_track(
+    status, player, midi, audio, stems_files, grid, upd = web.generate_track(
         "goa", 142, 4.5, "Am", "auto", 1, 0.85, "auto", "wav",
-        True, True, progress=rec)
+        True, True, False, progress=rec)
 
     assert status.startswith("❌") and "boom" in status
     assert player is None and midi is None and audio is None
@@ -189,9 +190,9 @@ def test_errors_echoed_into_status_and_none_audio(monkeypatch, tmp_path):
     _stub(monkeypatch, result=result)
     rec, _ = _progress_recorder()
 
-    status, player, midi, audio, grid, upd = web.generate_track(
+    status, player, midi, audio, stems_files, grid, upd = web.generate_track(
         "goa", 142, 4.5, "Am", "auto", 1, 0.85, "auto", "mp3",
-        True, True, progress=rec)
+        True, True, False, progress=rec)
 
     assert "⚠️ MP3 export needs ffmpeg" in status
     assert "⚠️ Mastering failed" in status
@@ -290,23 +291,45 @@ def test_bundle_no_run_yet_is_friendly():
     assert "Generate a track first" in note
 
 
+def test_bundle_zip_includes_stems_under_stems_prefix():
+    mid = web.BUNDLES_DIR.parent / "song.mid"
+    mid.parent.mkdir(parents=True, exist_ok=True)
+    mid.write_bytes(b"MThd")
+    stem = web.BUNDLES_DIR.parent / "drums.wav"
+    stem.write_bytes(b"WAV")
+    zip_path, note = web.make_bundle(str(mid), None, [str(stem)])
+    assert zip_path and Path(zip_path).exists()
+    with zipfile.ZipFile(zip_path) as zf:
+        assert sorted(zf.namelist()) == ["song.mid", "stems/drums.wav"]
+    assert "stems/drums.wav" in note
+
+
+def test_bundle_missing_stem_is_noted_not_fatal():
+    mid = web.BUNDLES_DIR.parent / "song.mid"
+    mid.parent.mkdir(parents=True, exist_ok=True)
+    mid.write_bytes(b"MThd")
+    zip_path, note = web.make_bundle(str(mid), None, [str(web.BUNDLES_DIR.parent / "gone.wav")])
+    assert zip_path and Path(zip_path).exists()
+    assert "stem missing" in note
+
+
 # ---------------------------------------------------------------------------
 # Step-4 D6(c) — load settings from history
 # ---------------------------------------------------------------------------
 
 _CURRENT = ("goa", 142.0, 4.5, "Am", "minor", 5, 0.85, "fluidsynth", "wav",
-            True, False)
+            True, False, False)
 
 
 def test_load_from_history_round_trip():
     web._save_history([_entry()])
     label = web._history_choices(web._load_history())[0]
     style, bpm, length, key, scale, seed, intensity, renderer, fmt, \
-        render_audio, master, note = web.load_from_history(label, *_CURRENT)
+        render_audio, master, stems, note = web.load_from_history(label, *_CURRENT)
     assert (style, bpm, length, key, scale, seed, intensity, renderer,
-            fmt, render_audio, master) == ("goa", 142.0, 4.5, "Am", "minor",
-                                           777, 0.85, "fluidsynth", "wav",
-                                           True, True)
+            fmt, render_audio, master, stems) == ("goa", 142.0, 4.5, "Am", "minor",
+                                                   777, 0.85, "fluidsynth", "wav",
+                                                   True, True, False)
     assert note.startswith("✅") and "#1" in note
 
 
@@ -351,9 +374,9 @@ def test_handler_records_ok_entry(monkeypatch, tmp_path):
     _stub(monkeypatch, result=_result_files(tmp_path, audio_path=str(wav)))
     rec, _ = _progress_recorder()
 
-    status, player, midi, audio, grid, upd = web.generate_track(
+    status, player, midi, audio, stems_files, grid, upd = web.generate_track(
         "goa", 142, 4.5, "Am", "minor", 777, 0.85, "fluidsynth", "wav",
-        True, True, progress=rec)
+        True, True, False, progress=rec)
 
     assert player == str(wav) and audio == str(wav) and Path(midi).exists()
     entry = web._load_history()[0]
@@ -371,7 +394,7 @@ def test_handler_records_midi_only(monkeypatch, tmp_path):
 
     status, *_ = web.generate_track(
         "goa", 142, 4.5, "Am", "auto", 777, 0.85, "auto", "wav",
-        False, True, progress=rec)
+        False, True, False, progress=rec)
 
     assert "MIDI only" in status
     entry = web._load_history()[0]
@@ -388,7 +411,7 @@ def test_handler_records_warnings_when_audio_kept(monkeypatch, tmp_path):
     rec, _ = _progress_recorder()
 
     web.generate_track("goa", 142, 4.5, "Am", "auto", 777, 0.85, "auto",
-                       "wav", True, True, progress=rec)
+                       "wav", True, True, False, progress=rec)
 
     entry = web._load_history()[0]
     assert entry["status"] == "warnings"
@@ -405,7 +428,7 @@ def test_handler_mp3_requested_stores_actual_wav(monkeypatch, tmp_path):
     rec, _ = _progress_recorder()
 
     web.generate_track("goa", 142, 4.5, "Am", "auto", 777, 0.85, "auto",
-                       "mp3", True, True, progress=rec)
+                       "mp3", True, True, False, progress=rec)
 
     entry = web._load_history()[0]
     assert entry["format"] == "mp3" and entry["audio"] == "track.wav"

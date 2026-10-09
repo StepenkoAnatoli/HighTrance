@@ -30,7 +30,7 @@ if hasattr(sys.stdout, "reconfigure"):
 import gradio as gr
 
 from config.settings import (BPM_RANGE, COMMON_KEYS, DEFAULTS, LENGTH_LIMITS,
-                             MASTERING, SCALES, STYLES)
+                             MASTERING, SCALES, STYLES, STEM_GROUPS)
 from core.generator import TranceGenerator
 from core.seed import MAX_SEED, generate_seed
 from synthesis.audio_render import RENDERERS
@@ -132,11 +132,11 @@ def _history_outputs_from(entries, value_index=0):
 # ---------------------------------------------------------------------------
 
 def generate_track(style, bpm, length, key, scale, seed, intensity,
-                   renderer, audio_format, render_audio, master,
+                   renderer, audio_format, render_audio, master, stems,
                    progress=gr.Progress()):
     """Generate one track for the web UI (design §6 handler contract).
 
-    Returns ``(status, player, midi_file, audio_file, history_df,
+    Returns ``(status, player, midi_file, audio_file, stems_files, history_df,
     history_dropdown)``; file outputs are ``None`` when there is nothing to
     show. Never raises into the event loop — unexpected exceptions are printed
     to the server's stderr first and still recorded as a ``failed`` history
@@ -146,7 +146,7 @@ def generate_track(style, bpm, length, key, scale, seed, intensity,
     inputs = dict(style=style, bpm=bpm, length=length, key=key, scale=scale,
                   seed=seed, intensity=intensity, renderer=renderer,
                   format=audio_format, render_audio=render_audio,
-                  master=master)
+                  master=master, stems=stems)
     try:
         # Friendly pre-check; TranceGenerator's constructor stays authoritative.
         try:
@@ -158,7 +158,7 @@ def generate_track(style, bpm, length, key, scale, seed, intensity,
             grid, upd = _history_outputs_from(_load_history(),
                                               value_index=None)
             return (f"❌ Length must be between {lo:g} and {hi:g} minutes.",
-                    None, None, None, grid, upd)
+                    None, None, None, None, grid, upd)
 
         if seed in (None, 0, ""):
             seed = generate_seed()
@@ -178,6 +178,7 @@ def generate_track(style, bpm, length, key, scale, seed, intensity,
             render_audio=bool(render_audio),
             audio_format=audio_format,
             master=bool(master),
+            stems=bool(stems),
             progress=lambda msg, frac: progress(frac, desc=msg),
         )
 
@@ -199,6 +200,12 @@ def generate_track(style, bpm, length, key, scale, seed, intensity,
         audio = str(audio) if audio and Path(audio).exists() else None
         midi = result.get("midi_path")
         midi = str(midi) if midi and Path(midi).exists() else None
+
+        # Per-group stems (built-in renderer only): existing files, in
+        # STEM_GROUPS order, or None when the run produced none.
+        stem_paths = result.get("stem_paths") or {}
+        stems_files = [str(stem_paths[g]) for g in STEM_GROUPS
+                       if stem_paths.get(g) and Path(stem_paths[g]).exists()] or None
 
         # Step-4 status matrix (design §Status matrix / D6(d)).
         if not render_audio:
@@ -227,6 +234,7 @@ def generate_track(style, bpm, length, key, scale, seed, intensity,
             "format": audio_format,
             "render_audio": bool(render_audio),
             "master": bool(master),
+            "stems": bool(stems),
             "duration_seconds": duration,
             "generation_time": float(result["generation_time"]),
             "status": entry_status,
@@ -236,26 +244,27 @@ def generate_track(style, bpm, length, key, scale, seed, intensity,
         }
         entries = _append_entry(entry)
         grid, upd = _history_outputs_from(entries, value_index=0)
-        return "\n".join(status), audio, midi, audio, grid, upd
+        return "\n".join(status), audio, midi, audio, stems_files, grid, upd
     except Exception as e:  # noqa: BLE001 - the UI must survive anything
         traceback.print_exc()
         entries = _append_entry(_failed_entry(inputs, str(e)))
         grid, upd = _history_outputs_from(entries, value_index=0)
-        return f"❌ {e}", None, None, None, grid, upd
+        return f"❌ {e}", None, None, None, None, grid, upd
 
 
 def load_from_history(choice, style, bpm, length, key, scale, seed, intensity,
-                      renderer, audio_format, render_audio, master):
+                      renderer, audio_format, render_audio, master, stems):
     """Load a history entry's settings back into the controls (design D2).
 
-    Returns the 11 control values + a status line. Invalid or out-of-range
+    Returns the 12 control values + a status line. Invalid or out-of-range
     entries leave the controls untouched and report ⚠. A dropdown value that
     is not among the current choices is rejected by the component before this
     handler runs (design f1′); the reachable failure is a history file that
-    shrank since the dropdown was built.
+    shrank since the dropdown was built. A legacy entry written before stems
+    existed has no ``stems`` key and is treated as ``False`` (step 6a).
     """
     current = (style, bpm, length, key, scale, seed, intensity, renderer,
-               audio_format, render_audio, master)
+               audio_format, render_audio, master, stems)
 
     def unchanged(msg):
         return (*current, f"⚠️ {msg}")
@@ -282,22 +291,25 @@ def load_from_history(choice, style, bpm, length, key, scale, seed, intensity,
         assert entry["format"] in ("wav", "mp3")
         assert isinstance(entry.get("render_audio"), bool)
         assert isinstance(entry.get("master"), bool)
+        assert isinstance(entry.get("stems", False), bool)
     except (AssertionError, KeyError, TypeError, ValueError):
         return unchanged(f"History entry #{index + 1} is invalid (edited?).")
     return (entry["style"], float(entry["bpm"]), float(entry["length"]),
             entry["key"], entry["scale"], int(entry["seed"]),
             float(entry["intensity"]), entry["renderer"], entry["format"],
             bool(entry["render_audio"]), bool(entry["master"]),
+            bool(entry.get("stems", False)),
             f"✅ Settings loaded from history #{index + 1} — press Generate")
 
 
-def make_bundle(midi_file, audio_file):
-    """Zip the latest run's MIDI (+ audio when present) into ``output/bundles/``.
+def make_bundle(midi_file, audio_file, stems_files=None):
+    """Zip the latest run's MIDI (+ audio + stems when present) into ``output/bundles/``.
 
     Returns ``(zip_path | None, status_note)`` and never raises — deleted
     files between runs yield a friendly note instead (design D3/r-f5). The
-    button reads the live MIDI/audio component values, so no session state is
-    needed (design D3/f2).
+    button reads the live MIDI/audio/stem component values, so no session
+    state is needed (design D3/f2). Stems are stored under ``stems/``; a
+    missing stem is noted, never fatal (step 6a).
     """
     try:
         if not midi_file:
@@ -317,6 +329,13 @@ def make_bundle(midi_file, audio_file):
                     contents.append(audio.name)
                 else:
                     contents.append(f"(audio missing: {audio.name})")
+            for stem in (stems_files or []):
+                stem_path = Path(stem)
+                if stem_path.exists():
+                    zf.write(stem_path, arcname=f"stems/{stem_path.name}")
+                    contents.append(f"stems/{stem_path.name}")
+                else:
+                    contents.append(f"(stem missing: {stem_path.name})")
         return str(zip_path), f"✅ Bundle ready: {zip_path.name} — " + \
             " + ".join(contents)
     except Exception as e:  # noqa: BLE001 - the UI must survive anything
@@ -359,6 +378,8 @@ def build_ui() -> gr.Blocks:
                 render_audio = gr.Checkbox(value=True, label="Render audio")
                 master = gr.Checkbox(value=bool(MASTERING["enabled"]),
                                      label="Master audio (EQ / compression / normalisation)")
+                stems = gr.Checkbox(value=False,
+                                    label="Export stems (Drums/Bass/Leads/Pads/FX)")
                 generate_btn = gr.Button("🌀 Generate track", variant="primary",
                                          size="lg")
             with gr.Column(scale=1):
@@ -367,6 +388,8 @@ def build_ui() -> gr.Blocks:
                 with gr.Row():
                     midi_file = gr.File(label="Download MIDI")
                     audio_file = gr.File(label="Download audio")
+                stems_files = gr.File(label="Stems (WAV)", file_count="multiple",
+                                     interactive=False)
                 with gr.Row():
                     bundle_btn = gr.Button("📦 Bundle (MIDI + audio)")
                     bundle_download = gr.File(label="Bundle ZIP")
@@ -386,20 +409,20 @@ def build_ui() -> gr.Blocks:
         generate_btn.click(
             fn=generate_track,
             inputs=[style, bpm, length, key, scale, seed, intensity,
-                    renderer, audio_format, render_audio, master],
-            outputs=[status, player, midi_file, audio_file, history_df,
-                     history_sel],
+                    renderer, audio_format, render_audio, master, stems],
+            outputs=[status, player, midi_file, audio_file, stems_files,
+                     history_df, history_sel],
         )
         load_btn.click(
             fn=load_from_history,
             inputs=[history_sel, style, bpm, length, key, scale, seed,
-                    intensity, renderer, audio_format, render_audio, master],
+                    intensity, renderer, audio_format, render_audio, master, stems],
             outputs=[style, bpm, length, key, scale, seed, intensity,
-                     renderer, audio_format, render_audio, master, status],
+                     renderer, audio_format, render_audio, master, stems, status],
         )
         bundle_btn.click(
             fn=make_bundle,
-            inputs=[midi_file, audio_file],
+            inputs=[midi_file, audio_file, stems_files],
             outputs=[bundle_download, bundle_status],
         )
     return demo

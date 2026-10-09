@@ -430,6 +430,48 @@ def get_mix(track_name: str) -> MixSettings:
 
 
 # ======================
+# STEMS EXPORT (synthesis/audio_render.py)
+# ======================
+
+#: Ceiling a written stem is scaled to. Stems are pre-master, so they are
+#: not peak-normalised like the exported mix; one shared gain (see the
+#: stems spec, D3) lifts the loudest stem to this peak so no WAV clips.
+STEMS = {"peak": 0.95}
+
+#: Per-group stems: group name -> the track names mixed into it. The
+#: insertion order is the file / sum order. Every track name in
+#: ``TRACK_ORDER`` (``core.generator``) appears in exactly one group;
+#: ``stem_group`` raises for an unknown name so a new track type can
+#: never silently vanish from the stems.
+STEM_GROUPS: Dict[str, Tuple[str, ...]] = {
+    "drums": ("kick", "percussion"),
+    "bass": ("bass",),
+    "leads": ("acid", "lead", "arp"),
+    "pads": ("pad", "texture"),
+    "fx": ("fx",),
+}
+
+#: Reverse map (track name -> group), built once at import time.
+_TRACK_TO_STEM: Dict[str, str] = {
+    name: group for group, names in STEM_GROUPS.items() for name in names
+}
+
+
+def stem_group(track_name: str) -> str:
+    """Return the stem group a track name belongs to.
+
+    Raises ``ValueError`` for an unknown name (the render path catches
+    it into ``result["errors"]``; the default, stems-off render never
+    calls this).
+    """
+    try:
+        return _TRACK_TO_STEM[track_name]
+    except KeyError:
+        raise ValueError(
+            f"Unknown track name for stem grouping: {track_name!r}") from None
+
+
+# ======================
 # SIDECHAIN (synthesis/mixer.py, synthesis/audio_render.py)
 # ======================
 

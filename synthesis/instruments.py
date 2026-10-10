@@ -157,20 +157,40 @@ def acid(note: Note, dur: float, sr: int, preset: StylePreset) -> np.ndarray:
 
 
 def lead(note: Note, dur: float, sr: int, preset: StylePreset) -> np.ndarray:
+    """Soft, singing goa lead.
+
+    Genre-mixing research (myloops psytrance lead guide, iZotope harshness
+    notes): leads get fatiguing when a wide supersaw + hard gate + full
+    resonance all hit the 2-4 kHz presence band at once. The recipe here:
+    few detuned voices, a rounded-off top end, velocity-driven gentle
+    brightness, and a slower filter release so notes breathe.
+    """
     p = note.params
     f0 = dsp.midi_to_hz(note.pitch)
     n_gate = max(1, int(dur * sr))
     n = n_gate + int(0.18 * sr)
     t = dsp.time_axis(n, sr)
-    vib = 1.0 + 0.006 * np.sin(dsp.TWO_PI * 5.5 * t) * np.clip((t - 0.12) / 0.25, 0.0, 1.0)
+    vib = 1.0 + 0.004 * np.sin(dsp.TWO_PI * 5.0 * t) * np.clip((t - 0.14) / 0.3, 0.0, 1.0)
     rng = np.random.default_rng(note.pitch)
     x = np.zeros(n)
-    detunes = (-0.011, -0.005, 0.0, 0.005, 0.011)
+    # Narrow stack (was +-1.1% spread): fewer voices, small detune -> warm
+    # chorus instead of a fizzy wall of sawtooth.
+    detunes = (-0.006, -0.002, 0.0, 0.002, 0.006)
     for d in detunes:
         f = f0 * (1 + d) * vib
         x += dsp.saw(dsp.phase_from_freq(f, n, sr, rng.random()), f, sr)
-    x = dsp.lowpass(x, p.get("cutoff", 5000.0), sr, q=0.9)
-    return _norm(x) * dsp.adsr(n, n_gate, sr, 0.005, 0.25, 0.7, 0.15)
+    x *= 0.2  # stack gain; _norm restores peak later, this keeps tanh sane
+    # Softening filter: default cutoff down from 5 kHz to 2.6 kHz, and the
+    # whole result is wrapped in a mild tanh so the top rounds off like an
+    # analog saw played at moderate level.
+    cutoff = p.get("cutoff", 2600.0)
+    x = dsp.lowpass(x, cutoff, sr, q=0.7)
+    x = np.tanh(x * 1.2)
+    # Tame the ear band: a gentle dip around 3.2 kHz instead of a broad notch
+    # (iZotope: 1-3 dB dynamic-ish cut, not a permanent dull of the whole lead).
+    x = dsp.peaking(x, 3200.0, -2.0, sr, q=1.4)
+    gate = dsp.adsr(n, n_gate, sr, 0.02, 0.35, 0.6, 0.2)  # slower softer gate
+    return (x / (np.max(np.abs(x)) + 1e-9)) * gate * (0.75 + 0.25 * p.get("vel", 1.0))
 
 
 def arp(note: Note, dur: float, sr: int, preset: StylePreset) -> np.ndarray:

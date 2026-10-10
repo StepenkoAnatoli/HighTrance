@@ -18,13 +18,27 @@ MotifNote = Tuple[int, int, int, bool]   # (step, length in steps, degree, ornam
 # Lead melody
 # ---------------------------------------------------------------------------
 
+#: Per-track rhythm templates (research: "variety but recognisability" comes
+#: from rotating the RHYTHMIC template while keeping the same motif engine;
+#: rhythm-before-notes is the psytrance-blueprint MWNN 'Possessed' lesson).
+_RHYTHM_TEMPLATES = (
+    {"lengths": (2, 2, 3, 4, 4, 6, 8), "rests": (2, 4)},            # flowing default
+    {"lengths": (4, 4, 8, 4, 6, 2),    "rests": (2,)},              # longer notes, sparser
+    {"lengths": (2, 2, 2, 4, 8),       "rests": (2, 4, 6)},         # sparse call&response
+    {"lengths": (3, 3, 6, 4, 4, 2),    "rests": (2,)},              # 3-over-4 push
+    {"lengths": (2, 4, 4, 4, 8, 2),    "rests": (4,)},              # steady 8th push
+)
+
+
 def _motif(ctx: GenerationContext, rng: random.Random, bars: int = 2) -> List[MotifNote]:
     """A catchy rhythm-first motif: mostly stepwise, chord tones on strong beats,
     phrase lands on the root or 5th. Repetition + contour = recognition
     (psytrance-blueprint: rhythm before note choice)."""
     p = ctx.preset
+    tmpl = rng.choice(_RHYTHM_TEMPLATES)          # one rhythmic identity per track
+    lengths = list(tmpl["lengths"])
+    rests = list(tmpl["rests"])
     eastern = "eastern" in p.lead_style
-    lengths = [2, 2, 3, 4, 4, 6, 8] if eastern else [2, 2, 3, 4, 4]
     moves = [-1, 1, 1, 2, -1] if eastern else [-2, -1, 1, 1, 2, -2]
     chord_tones = (0, 2, 4)
     notes: List[MotifNote] = []
@@ -42,7 +56,7 @@ def _motif(ctx: GenerationContext, rng: random.Random, bars: int = 2) -> List[Mo
             notes.append((s, length, deg, length >= 4 and rng.random() < p.ornament_prob * 0.6))
             s += length
         else:
-            s += rng.choice([2, 4])          # space, not clutter: rests are part of the hook
+            s += rng.choice(rests)           # space, not clutter: rests are part of the hook
     # resolve: end the phrase on root / 5th (conclusive but open enough)
     if notes:
         sl, = [notes[-1][0]]
@@ -95,13 +109,14 @@ def _lead(ctx: GenerationContext, rng: random.Random) -> Track:
         for bar in range(section.start_bar, section.end_bar, 2):
             rel = bar - section.start_bar
             e = energy(ctx, section, bar)
-            cutoff = 1500 + 6500 * e
+            cutoff = 1300 + 2600 * e   # was 6500 top: supersaw fizz = the annoying edge
             if section.kind == "drop":
-                if section.bars > 8 and rel < 8:
+                if section.bars > 8 and rel < 4:
                     continue                                   # let the groove breathe first
+                # Mystica cohesion: one persistent voice; the answer appears
+                # once per 8 bars, never doubled an octave up.
                 motif = answer if (rel // 2) % 4 == 3 else theme
-                double = section.name == "drop2" and ctx.intensity > 0.6
-                _play_motif(track, ctx, motif, bar, 1, 92 + 20 * e, cutoff, octave, double, rng, end)
+                _play_motif(track, ctx, motif, bar, 1, 86 + 18 * e, cutoff, octave, False, rng, end)
             elif section.kind == "breakdown":
                 if rel % 4 or section.progress(bar) < 0.25:
                     continue
@@ -134,7 +149,7 @@ def _arp(ctx: GenerationContext, rng: random.Random) -> Track:
             e = energy(ctx, section, bar)
             if section.kind == "build" and section.progress(bar) < 0.25:
                 continue
-            if section.kind == "drop" and (rel // 8) % 2 == 1 and section.bars > 8:
+            if section.kind == "drop" and (rel < 8 or (rel // 8) % 2 == 1) and section.bars > 8:
                 continue                                       # call & response with the lead
             if section.kind == "breakdown" and section.progress(bar) > 0.85:
                 continue

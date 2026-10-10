@@ -129,7 +129,7 @@ def _closer(mix: np.ndarray, song, sample_rate: int) -> np.ndarray:
     sections = getattr(getattr(song, "arrangement", None), "sections", None)
     if sections:
         mix = smooth_transitions(mix, sections, song.bpm, sample_rate)
-    return auto_level(mix, song.bpm, sample_rate)
+    return auto_level(mix, song.bpm, sample_rate, max_gain_db=2.0)
 
 
 def render_song_audio(song, sample_rate: int = DEFAULTS["sample_rate"], progress=None) -> np.ndarray:

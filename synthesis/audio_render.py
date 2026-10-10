@@ -152,7 +152,12 @@ def render_song_audio(song, sample_rate: int = DEFAULTS["sample_rate"], progress
 
     if progress:
         progress("Mixing", len(song.tracks) / (len(song.tracks) + 1))
-    delayed = mixer.delay(delay_bus)
+    # Phrase-end delay throws: during the last 2 beats of every 8-bar phrase,
+    # echoes bloom (feedback x1.8, capped 0.95) — a "wow" event, then snaps back.
+    spb = 60.0 / song.bpm
+    boost = (spb * 30.0, spb * 32.0, 1.8)          # samples computed below
+    boost = (int(spb * 30.0 * sample_rate), int(spb * 32.0 * sample_rate), 1.8)
+    delayed = mixer.delay(delay_bus, feedback_boost=boost)
     master += delayed
     reverb_bus += delayed.mean(axis=1) * 0.5
     del delayed

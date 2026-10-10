@@ -17,9 +17,9 @@ from config.settings import BEATS_PER_BAR, SECTION_ORDER, STRUCTURE
 SECTION_PROFILES: Dict[str, Tuple[str, float, float, FrozenSet[str]]] = {
     "intro": ("intro", 0.15, 0.35,
               frozenset({"kick", "percussion", "bass", "pad", "texture", "fx"})),
-    "build1": ("build", 0.34, 0.62,
+    "build1": ("build", 0.34, 0.66,
                frozenset({"kick", "percussion", "bass", "acid", "arp", "pad", "texture", "fx"})),
-    "drop1": ("drop", 0.70, 0.80,
+    "drop1": ("drop", 0.78, 0.86,
               frozenset({"kick", "percussion", "bass", "acid", "lead", "arp", "pad", "fx"})),
     "breakdown": ("breakdown", 0.20, 0.40,
                   frozenset({"pad", "texture", "lead", "arp", "fx"})),

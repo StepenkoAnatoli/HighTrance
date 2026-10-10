@@ -62,14 +62,18 @@ def generate(ctx: GenerationContext, rng: random.Random) -> List[Track]:
             e = energy(ctx, section, bar)
             t0 = bar_start(bar)
             pre_drop = is_pre_drop(section, bar)
+            last_bar = bar == section.end_bar - 1
+            hole_bar = section.kind == "build" and last_bar   # full strip: drop returns all-at-once
             phrase_end = is_phrase_end(section, bar)
             progress = section.progress(bar)
 
             # ---------------- kick ----------------
             if section.has("kick") and not (section.kind == "outro" and progress >= 0.85):
                 beats = [0, 1, 2, 3]
-                if pre_drop:
-                    beats = [0, 1]
+                if hole_bar:
+                    beats = []                    # the hole: silence before impact
+                elif pre_drop:
+                    beats = [0, 2]                # half-time pulse into the hole
                 elif phrase_end and section.kind in ("drop", "build") and pat["kick_var"] == "skip_last":
                     beats = [0, 1, 2]
                 elif phrase_end and section.kind == "drop" and pat["kick_var"] == "double":

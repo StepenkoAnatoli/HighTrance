@@ -135,8 +135,13 @@ class Mixer:
                 x[s0: s0 + len(idx)] *= gains
         return x
 
-    def delay(self, mono: np.ndarray, beats: float = 0.75) -> np.ndarray:
-        """Tempo-synced (dotted 8th by default) ping-pong delay -> stereo."""
+    def delay(self, mono: np.ndarray, beats: float = 0.75, feedback_boost=None) -> np.ndarray:
+        """Tempo-synced (dotted 8th by default) ping-pong delay -> stereo.
+
+        ``feedback_boost``: optional (start_s, end_s, mult) tuple — multiplies
+        the feedback gain inside that window (myloops arrangement trick:
+        throw builds 30->70% feedback at a phrase end, snaps back after).
+        """
         n = len(mono)
         out = np.zeros((n, 2), dtype=np.float32)
         d = int(round(beats * 60.0 / self.bpm * self.sr))
@@ -146,6 +151,12 @@ class Mixer:
         gain, k = 1.0, 1
         while k * d < n:
             gain *= self.delay_feedback
+            if feedback_boost is not None:
+                t0, t1, m = feedback_boost
+                idx = k * d
+                # if this echo lands inside the boost window, lift it
+                if t0 <= idx / self.sr <= t1:
+                    gain = min(gain * m, 0.95)
             if gain < 0.02:
                 break
             ch = (k - 1) % 2

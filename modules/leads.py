@@ -159,7 +159,8 @@ def _arp(ctx: GenerationContext, rng: random.Random) -> Track:
             cutoff = 800 + 4200 * e
             for s in range(last):
                 step_index = bar * STEPS_PER_BAR + s       # continuous -> 3-over-4 drifts across bars
-                deg = root + offsets[step_index % len(offsets)]
+                oct_up = ((bar - section.start_bar) // 8) % 2 == 1   # alternate cycles jump an octave
+                deg = root + offsets[step_index % len(offsets)] + (7 if oct_up else 0)
                 vel = 78 + (18 if step_index % len(offsets) == 0 else 0) + 10 * e
                 pan = 0.35 if step_index % 2 else -0.35
                 track.add(bar_start(bar) + s * STEP, STEP * gate, ctx.scale.pitch(deg, octave),
@@ -238,8 +239,12 @@ def _acid(ctx: GenerationContext, rng: random.Random) -> Track:
             e = energy(ctx, section, bar)
             if section.kind == "build":
                 cutoff = p.acid_cutoff * (0.35 + 1.6 * prog)
-            else:   # the classic hand-tweaked filter sweep (LFO over 8 bars)
-                cutoff = p.acid_cutoff * (0.7 + 0.9 * e * (0.5 + 0.5 * math.sin(2 * math.pi * rel / 8)))
+            elif rel == 0:
+                cutoff = p.acid_cutoff * 1.9      # drop-in snap: wide open then closes
+            else:   # hand-tweaked sweep: 8-bar arc ON TOP of a 1-bar wobble
+                bar_phase = (bar - section.start_bar) % 8 / 8
+                lfo = 1.0 + 0.33 * math.sin(2 * math.pi * bar / 1.0)   # per-bar wobble
+                cutoff = p.acid_cutoff * (0.7 + 1.0 * e * (0.5 + 0.5 * math.sin(2 * math.pi * bar_phase * 2))) * lfo
             track.cc(bar_start(bar), 74, cutoff_to_cc(cutoff))
             last = 8 if is_pre_drop(section, bar) else STEPS_PER_BAR
             root = ctx.harmony.root(bar)

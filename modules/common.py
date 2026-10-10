@@ -32,8 +32,12 @@ def is_phrase_end(section, bar: int, phrase: int = 8) -> bool:
 
 
 def is_pre_drop(section, bar: int) -> bool:
-    """Last bar of a build-up: the classic moment of silence before the drop."""
-    return section.kind == "build" and bar == section.end_bar - 1
+    """Last 2 bars of a build-up: thin-out + silence-hole before the drop.
+
+    Research (myloops 'tension before a drop', Blueprint huge-drop guide):
+    a 1-bar hole reads as a glitch; the classic tension bar is the LAST bar
+    where rhythmic elements get stripped and the riser carries the bar."""
+    return section.kind == "build" and bar >= section.end_bar - 1
 
 
 def velocity(base: float, rng, spread: int = 6) -> int:
